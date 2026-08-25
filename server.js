@@ -31,7 +31,8 @@ function defaultState() {
     ],
     currentId: null,
     sessionId: null,
-    votingActive: false
+    votingActive: false,
+    round: 1
   };
 }
 
@@ -90,7 +91,8 @@ async function initState() {
         contestants: contestants.length ? contestants : defaultState().contestants,
         currentId: appState.currentId,
         sessionId: appState.sessionId,
-        votingActive: appState.votingActive
+        votingActive: appState.votingActive,
+        round: appState.round || 1
       };
 
       if (state.votingActive && state.sessionId) {
@@ -134,8 +136,10 @@ function persistContestant(c) {
 }
 
 function persistContestantDeleted(id) {
+  // Soft delete: keep the row in Supabase (for history), just hide it from the
+  // active lineup so a restart doesn't bring it back.
   saveLocalCache();
-  db.deleteContestant(id);
+  db.setContestantActive(id, false);
 }
 
 function persistAppState() {
@@ -146,6 +150,11 @@ function persistAppState() {
 function persistVote(sessionId, deviceId, score) {
   saveLocalCache();
   db.upsertVote(sessionId, deviceId, score);
+}
+
+function persistReorder(ids) {
+  saveLocalCache();
+  db.setSortOrders(ids);
 }
 
 function currentVoteCount() {
@@ -173,7 +182,7 @@ io.on('connection', (socket) => {
     if (!name || !name.trim()) return;
     const c = { id: newId(), name: name.trim(), avg: null };
     state.contestants.push(c);
-    persistContestant(c);
+    persistContestant({ ...c, sortOrder: state.contestants.length - 1, active: true });
     broadcastState();
   });
 
@@ -191,6 +200,57 @@ io.on('connection', (socket) => {
     if (state.currentId === id) return; // never delete the live entry
     state.contestants = state.contestants.filter((c) => c.id !== id);
     persistContestantDeleted(id);
+    broadcastState();
+  });
+
+  socket.on('admin:reorderContestants', ({ ids }) => {
+    if (!Array.isArray(ids)) return;
+    const byId = new Map(state.contestants.map((c) => [c.id, c]));
+    const reordered = ids.map((id) => byId.get(id)).filter(Boolean);
+    // Safety net: if any current contestant wasn't in the incoming id list
+    // (e.g. added/removed by someone else mid-drag), keep it, appended at the end.
+    const missing = state.contestants.filter((c) => !ids.includes(c.id));
+    state.contestants = [...reordered, ...missing];
+    persistReorder(state.contestants.map((c) => c.id));
+    broadcastState();
+  });
+
+  // Takes the top 50% by score (ties included, so a tie at the cutoff advances
+  // everyone tied with it) into a fresh, randomly-shuffled lineup for the next
+  // round — no need to type the list in again. Eliminated contestants are kept
+  // in Supabase (soft-deleted) rather than destroyed.
+  socket.on('admin:startNextRound', () => {
+    if (state.votingActive) return;
+    const scored = state.contestants.filter((c) => c.avg !== null && c.avg !== undefined);
+    if (scored.length === 0) return;
+
+    const sorted = [...scored].sort((a, b) => b.avg - a.avg);
+    const cutoffCount = Math.max(1, Math.ceil(sorted.length / 2));
+    const cutoffScore = sorted[cutoffCount - 1].avg;
+    const qualifiers = sorted.filter((c) => c.avg >= cutoffScore);
+    const eliminated = state.contestants.filter((c) => !qualifiers.some((q) => q.id === c.id));
+
+    // Fisher-Yates shuffle
+    for (let i = qualifiers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [qualifiers[i], qualifiers[j]] = [qualifiers[j], qualifiers[i]];
+    }
+    qualifiers.forEach((c) => {
+      c.avg = null; // fresh scoring for the new round
+    });
+
+    state.contestants = qualifiers;
+    state.currentId = null;
+    state.sessionId = null;
+    state.votingActive = false;
+    state.round = (state.round || 1) + 1;
+
+    saveLocalCache();
+    db.saveAppState(state);
+    db.setSortOrders(qualifiers.map((c) => c.id));
+    qualifiers.forEach((c) => db.upsertContestant({ id: c.id, name: c.name, avg: null }));
+    eliminated.forEach((c) => db.setContestantActive(c.id, false));
+
     broadcastState();
   });
 

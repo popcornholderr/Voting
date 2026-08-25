@@ -96,6 +96,17 @@ be deployed that way.
   **down** — so 8.1 → 8, 8.4 → 8.5, 8.25 → 8.
 - Dummy contestants are pre-loaded — rename, remove, or add real names
   any time from the admin page.
+- **Reorder the lineup:** drag a contestant's `⠿` handle up or down to move
+  them to a new position (e.g. move #2 to #6 if they're not ready yet).
+  Works on both mouse and touch.
+- **Results page:** hit **Results** in the admin header to see everyone
+  ranked by score, highest first, with the top 50% (ties included) marked
+  **Advances**.
+- **Start next round:** from the Results page, **Start Round 2** (etc.)
+  replaces the lineup with just the advancing contestants, in a fresh
+  random order, scores cleared — no retyping names. Eliminated
+  contestants aren't deleted, just hidden from the current round (kept
+  in Supabase for history).
 
 ## Data persistence — restarts and internet loss
 

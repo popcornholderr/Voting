@@ -171,6 +171,41 @@
   @media (max-width:420px){
     .cr-mid, .cc-actions{padding-left:0;}
   }
+
+  /* ---------- ADMIN: header row + round badge + results link ---------- */
+  .admin-intro-row{display:flex; justify-content:space-between; align-items:flex-start; gap:16px;}
+  .round-badge{display:block; margin-top:8px; color:var(--ivory-dim); font-size:11px; letter-spacing:1.5px; text-transform:uppercase;}
+  .results-link{white-space:nowrap; padding:9px 0; border-bottom:1px solid transparent;}
+  .results-link:hover{color:var(--ivory); border-color:var(--ivory-dim);}
+
+  /* ---------- ADMIN: drag to reorder ---------- */
+  .cr-drag{
+    cursor:grab; touch-action:none; user-select:none;
+    color:var(--muted); font-size:15px; letter-spacing:1px;
+    padding:4px 8px 4px 0; line-height:1;
+  }
+  .cr-drag:hover{color:var(--ivory-dim);}
+  .contestant-row.dragging{opacity:0.4;}
+  .contestant-row{touch-action:pan-y;}
+
+  /* ---------- ADMIN: results view ---------- */
+  .res-row{
+    display:flex; align-items:center; gap:14px; padding:16px 22px;
+    border-bottom:1px solid var(--line);
+  }
+  .res-row.advancing{background:rgba(216,31,38,0.06);}
+  .res-row.muted-row{opacity:0.5;}
+  .res-rank{width:26px; font-size:15px; color:var(--muted); flex-shrink:0;}
+  .res-name{flex:1; font-size:18px; font-style:italic;}
+  .res-score{font-size:14px; color:var(--ivory-dim); white-space:nowrap;}
+  .res-tag{
+    font-size:9.5px; font-weight:700; letter-spacing:1.6px; color:var(--crimson);
+    border:1px solid var(--crimson); padding:4px 8px; white-space:nowrap;
+  }
+  .results-actions{
+    display:flex; justify-content:space-between; align-items:center; gap:16px;
+    padding:26px 22px;
+  }
 </style>
 </head>
 <body>
@@ -223,8 +258,14 @@
       </div>
       <div class="admin-wrap">
         <div class="admin-intro">
-          <h1 class="admin-title serif">The Control Room</h1>
-          <div class="admin-sub">Open the floor to one entry at a time, then close to lock the score.<br>Audience opens this address without <code>?admin=1</code>.</div>
+          <div class="admin-intro-row">
+            <div>
+              <h1 class="admin-title serif">The Control Room</h1>
+              <div class="admin-sub">Open the floor to one entry at a time, then close to lock the score.<br>Audience opens this address without <code>?admin=1</code>.</div>
+              <span class="round-badge tracked" id="round-badge">Round 1</span>
+            </div>
+            <button class="cr-textbtn results-link" id="results-btn">Results →</button>
+          </div>
         </div>
 
         <div class="add-row">
@@ -247,6 +288,7 @@
     div.id = 'card-' + c.id;
     div.innerHTML = `
       <div class="cr-top">
+        <span class="cr-drag" title="Drag to reorder">⠿</span>
         <span class="cr-lot serif">${lotNum(idx)}</span>
         <input class="cr-name-input" id="name-input-${c.id}" value="${escapeHtml(c.name)}" maxlength="60">
         <button class="cr-textbtn" data-id="${c.id}" data-action="save">Rename</button>
@@ -273,10 +315,64 @@
     if(sig !== adminIdsSignature){
       const list = document.getElementById('list');
       list.innerHTML = '';
-      state.contestants.forEach((c,i) => list.appendChild(buildContestantRow(c,i)));
+      state.contestants.forEach((c,i) => {
+        const row = buildContestantRow(c,i);
+        list.appendChild(row);
+        makeRowDraggable(row);
+      });
       adminIdsSignature = sig;
       attachListEvents();
     }
+  }
+
+  // Drag a row (via its handle) up or down to reorder the lineup. Works with
+  // both mouse and touch through Pointer Events. On release, the new order is
+  // sent to the server, and every row's lot number is renumbered live.
+  function makeRowDraggable(row){
+    const handle = row.querySelector('.cr-drag');
+    if(!handle) return;
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const list = document.getElementById('list');
+      row.classList.add('dragging');
+      try { handle.setPointerCapture(e.pointerId); } catch(err){}
+
+      const onMove = (ev) => {
+        const y = ev.clientY;
+        const siblings = Array.from(list.children).filter(r => r !== row);
+        let placed = false;
+        for(const sib of siblings){
+          const rect = sib.getBoundingClientRect();
+          if(y < rect.top + rect.height/2){
+            list.insertBefore(row, sib);
+            placed = true;
+            break;
+          }
+        }
+        if(!placed) list.appendChild(row);
+      };
+
+      const onUp = (ev) => {
+        row.classList.remove('dragging');
+        try { handle.releasePointerCapture(ev.pointerId); } catch(err){}
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('pointercancel', onUp);
+
+        const newOrder = Array.from(list.children).map(r => r.id.replace('card-',''));
+        Array.from(list.children).forEach((r,i) => {
+          const lotEl = r.querySelector('.cr-lot');
+          if(lotEl) lotEl.textContent = lotNum(i);
+        });
+        adminIdsSignature = newOrder.join(','); // matches what the server will echo back
+        socket.emit('admin:reorderContestants', {ids: newOrder});
+      };
+
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    });
   }
 
   function attachListEvents(){
@@ -357,9 +453,9 @@
     countEl.textContent = count + ' vote' + (count===1?'':'s') + ' received';
   }
 
-  function initAdmin(){
-    renderAdminShell();
+  let adminView = 'lineup'; // 'lineup' | 'results'
 
+  function attachShellEvents(){
     document.getElementById('add-btn').onclick = () => {
       const input = document.getElementById('new-name-input');
       const val = input.value.trim();
@@ -370,11 +466,111 @@
     document.getElementById('new-name-input').addEventListener('keydown', (e)=>{
       if(e.key === 'Enter') document.getElementById('add-btn').click();
     });
+    document.getElementById('results-btn').onclick = () => {
+      adminView = 'results';
+      renderResultsView(adminState);
+    };
+    if(adminState) updateRoundBadge(adminState);
+  }
+
+  function updateRoundBadge(state){
+    const el = document.getElementById('round-badge');
+    if(el) el.textContent = 'Round ' + (state.round || 1);
+  }
+
+  // Top 50% by score, ties at the cutoff included (so a tie never arbitrarily
+  // knocks someone out). Unscored contestants can't advance.
+  function computeRanking(contestants){
+    const scored = contestants.filter(c => c.avg !== null && c.avg !== undefined);
+    const unscored = contestants.filter(c => c.avg === null || c.avg === undefined);
+    const sorted = [...scored].sort((a,b) => b.avg - a.avg);
+    let qualifyingIds = new Set();
+    if(sorted.length){
+      const cutoffCount = Math.max(1, Math.ceil(sorted.length/2));
+      const cutoffScore = sorted[cutoffCount-1].avg;
+      sorted.forEach(c => { if(c.avg >= cutoffScore) qualifyingIds.add(c.id); });
+    }
+    return { sorted, unscored, qualifyingIds };
+  }
+
+  function renderResultsView(state){
+    const { sorted, unscored, qualifyingIds } = computeRanking(state.contestants);
+
+    const rows = sorted.map((c,i) => `
+      <div class="res-row ${qualifyingIds.has(c.id) ? 'advancing' : ''}">
+        <span class="res-rank serif">${i+1}</span>
+        <span class="res-name serif">${escapeHtml(c.name)}</span>
+        <span class="res-score serif">${fmtAvg(c.avg)} / 10</span>
+        ${qualifyingIds.has(c.id) ? '<span class="res-tag">Advances</span>' : ''}
+      </div>
+    `).join('');
+
+    const unscoredRows = unscored.map(c => `
+      <div class="res-row muted-row">
+        <span class="res-rank serif">—</span>
+        <span class="res-name serif">${escapeHtml(c.name)}</span>
+        <span class="res-score serif">No score yet</span>
+      </div>
+    `).join('');
+
+    const canAdvance = sorted.length > 0 && !state.votingActive;
+    const nextRound = (state.round || 1) + 1;
+
+    app.innerHTML = `
+      <div class="brandbar">
+        <div class="wordmark">LIVE <span>VOTE</span></div>
+        <div class="lot-tag">ROUND ${state.round || 1} RESULTS</div>
+      </div>
+      <div class="admin-wrap">
+        <div class="admin-intro">
+          <h1 class="admin-title serif">Results</h1>
+          <div class="admin-sub">Ranked highest to lowest. Top 50% (ties included) advance to the next round.</div>
+        </div>
+        <div id="results-list">${rows}${unscoredRows}</div>
+        <div class="results-actions">
+          <button class="cr-textbtn" id="back-to-lineup">&larr; Back to lineup</button>
+          <button class="start-btn" id="start-next-round-btn" ${canAdvance ? '' : 'disabled'}>Start Round ${nextRound}</button>
+        </div>
+        ${state.votingActive ? '<div class="footer-note">Close the current vote before starting the next round.</div>' : ''}
+        ${sorted.length === 0 ? '<div class="footer-note">No scores yet — close at least one round of voting first.</div>' : ''}
+      </div>
+    `;
+
+    document.getElementById('back-to-lineup').onclick = () => {
+      adminView = 'lineup';
+      renderAdminShell();
+      attachShellEvents();
+      adminIdsSignature = '';
+      rebuildListIfNeeded(adminState);
+      updateDynamic(adminState);
+    };
+
+    const nextBtn = document.getElementById('start-next-round-btn');
+    if(nextBtn && canAdvance){
+      nextBtn.onclick = () => {
+        socket.emit('admin:startNextRound');
+        adminView = 'lineup';
+        renderAdminShell();
+        attachShellEvents();
+        adminIdsSignature = '';
+        // list will populate as soon as the server's updated state arrives
+      };
+    }
+  }
+
+  function initAdmin(){
+    renderAdminShell();
+    attachShellEvents();
 
     socket.on('state', (state) => {
       adminState = state;
-      rebuildListIfNeeded(state);
-      updateDynamic(state);
+      if(adminView === 'lineup'){
+        rebuildListIfNeeded(state);
+        updateDynamic(state);
+        updateRoundBadge(state);
+      } else {
+        renderResultsView(state);
+      }
     });
     socket.on('voteCount', ({sessionId, count}) => updateVoteCount(sessionId, count));
   }
