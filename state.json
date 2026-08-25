@@ -1,0 +1,32 @@
+{
+  "contestants": [
+    {
+      "id": "c1",
+      "name": "Contestant 1",
+      "avg": 9
+    },
+    {
+      "id": "c2",
+      "name": "Contestant 2",
+      "avg": 8
+    },
+    {
+      "id": "c3",
+      "name": "Contestant 3",
+      "avg": null
+    },
+    {
+      "id": "c4",
+      "name": "Contestant 4",
+      "avg": 10
+    },
+    {
+      "id": "c_mt998jz6vgbf1",
+      "name": "yusuf",
+      "avg": 8
+    }
+  ],
+  "currentId": null,
+  "sessionId": null,
+  "votingActive": false
+}

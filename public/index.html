@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Live Vote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340;0,9..144,480;0,9..144,600;1,9..144,420;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0c0c0d;
+    --ink-2:#151516;
+    --ink-3:#1b1b1c;
+    --ivory:#f4f1e9;
+    --ivory-dim:#c9c4b6;
+    --line:rgba(244,241,233,0.14);
+    --line-strong:rgba(244,241,233,0.32);
+    --crimson:#d81f26;
+    --muted:#8f8b80;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;height:100%;
+    background:var(--ink);
+    color:var(--ivory);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    overscroll-behavior:none;
+  }
+  #app{min-height:100vh; display:flex; flex-direction:column;}
+  .serif{font-family:'Fraunces',serif;}
+  ::selection{background:var(--crimson); color:var(--ivory);}
+  button{font-family:inherit; cursor:pointer; border:none; outline:none; background:none;}
+  button:focus-visible, input:focus-visible{outline:1px solid var(--crimson); outline-offset:3px;}
+  input{font-family:inherit;}
+  .tracked{letter-spacing:2.4px; text-transform:uppercase;}
+
+  .conn-flag{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    background:var(--crimson); color:var(--ivory); text-align:center;
+    font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+    padding:7px; transform:translateY(-100%); transition:transform .25s ease;
+  }
+  .conn-flag.show{transform:translateY(0);}
+
+  .brandbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 22px 18px; border-bottom:1px solid var(--line);
+  }
+  .wordmark{font-size:13px; font-weight:600; letter-spacing:3px;}
+  .wordmark span{color:var(--crimson);}
+  .lot-tag{font-size:11px; color:var(--muted); letter-spacing:2px;}
+
+  /* ---------- AUDIENCE ---------- */
+  .aud-wrap{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:40px 24px 56px; text-align:center;
+  }
+  .rule-sm{width:34px; height:1px; background:var(--line-strong); margin:0 auto 22px;}
+  .live-tag{
+    display:inline-flex; align-items:center; gap:9px; margin-bottom:34px;
+    font-size:11px; font-weight:600; color:var(--ivory-dim);
+  }
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--crimson); animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:0.25;}}
+
+  .eyebrow{font-size:11px; color:var(--muted); margin-bottom:16px;}
+  .contestant-name{
+    font-size:clamp(34px, 10.5vw, 60px); font-weight:480; font-style:italic; line-height:1.05;
+    margin:0 0 38px 0; max-width:100%; word-break:break-word;
+  }
+  .num-grid{
+    display:grid; grid-template-columns:repeat(5, 1fr);
+    width:100%; max-width:400px; margin-bottom:30px;
+    border-top:1px solid var(--line); border-left:1px solid var(--line);
+  }
+  .num-btn{
+    aspect-ratio:1/1; background:transparent;
+    border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+    color:var(--ivory-dim); font-family:'Fraunces',serif; font-weight:420;
+    font-size:clamp(17px,5vw,22px);
+    display:flex; align-items:center; justify-content:center;
+    transition:background .15s ease, color .15s ease;
+  }
+  .num-btn:active{background:var(--ink-3);}
+  .num-btn.selected{
+    background:var(--crimson); color:var(--ivory); border-color:var(--crimson);
+  }
+  .submit-btn{
+    width:100%; max-width:400px; padding:16px; border:1px solid var(--ivory-dim);
+    background:transparent; color:var(--ivory);
+    font-size:12px; font-weight:600; letter-spacing:2.2px; text-transform:uppercase;
+    transition:background .18s, color .18s, border-color .18s, opacity .18s;
+  }
+  .submit-btn:not(:disabled):hover{border-color:var(--ivory);}
+  .submit-btn.armed{background:var(--ivory); color:var(--ink); border-color:var(--ivory);}
+  .submit-btn:disabled{opacity:0.32; pointer-events:none;}
+
+  .mark-glyph{font-family:'Fraunces',serif; font-style:italic; font-size:26px; color:var(--crimson); margin-bottom:20px;}
+  .thanks-title{font-size:clamp(30px,8vw,44px); font-weight:480; font-style:italic; margin:0 0 14px 0;}
+  .thanks-sub{color:var(--muted); font-size:13.5px; max-width:300px; line-height:1.7; letter-spacing:0.2px;}
+  .waiting-dots span{animation:blink 1.6s infinite; opacity:0.15;}
+  .waiting-dots span:nth-child(2){animation-delay:.22s;}
+  .waiting-dots span:nth-child(3){animation-delay:.44s;}
+  @keyframes blink{0%,100%{opacity:0.15;}50%{opacity:0.9;}}
+
+  /* ---------- ADMIN ---------- */
+  .admin-wrap{max-width:640px; margin:0 auto; width:100%; padding:0 0 90px;}
+  .admin-intro{padding:26px 22px 8px;}
+  .admin-title{font-size:26px; font-weight:480; font-style:italic; margin:0 0 6px 0;}
+  .admin-sub{color:var(--muted); font-size:12.5px; letter-spacing:0.2px; line-height:1.6;}
+  .admin-sub code{color:var(--ivory-dim); background:var(--ink-3); padding:1px 6px; font-family:'Inter',monospace; font-size:11px;}
+
+  .add-row{display:flex; align-items:flex-end; gap:16px; padding:26px 22px; border-bottom:1px solid var(--line);}
+  .add-row input{
+    flex:1; background:transparent; border:none; border-bottom:1px solid var(--line-strong);
+    padding:8px 2px; color:var(--ivory); font-size:16px; font-family:'Fraunces',serif; font-style:italic;
+  }
+  .add-row input::placeholder{color:var(--muted); font-style:italic;}
+  .add-row button{
+    color:var(--ivory-dim); font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+    padding:9px 0; border-bottom:1px solid transparent; white-space:nowrap;
+  }
+  .add-row button:hover{color:var(--ivory); border-color:var(--ivory-dim);}
+
+  .contestant-row{
+    padding:22px 22px; border-bottom:1px solid var(--line); transition:background .2s;
+  }
+  .contestant-row.active-row{background:rgba(216,31,38,0.05);}
+  .cr-top{display:flex; align-items:baseline; gap:14px; margin-bottom:14px;}
+  .cr-lot{font-family:'Fraunces',serif; font-size:13px; color:var(--muted); min-width:22px;}
+  .cr-name-input{
+    flex:1; background:transparent; border:none; border-bottom:1px solid transparent;
+    color:var(--ivory); font-family:'Fraunces',serif; font-style:italic; font-size:19px;
+    padding:2px 0; min-width:100px;
+  }
+  .cr-name-input:hover, .cr-name-input:focus{border-bottom:1px solid var(--line-strong);}
+  .cr-textbtn{font-size:10.5px; font-weight:600; letter-spacing:1.6px; color:var(--muted); text-transform:uppercase; white-space:nowrap;}
+  .cr-textbtn:hover{color:var(--ivory);}
+  .cr-textbtn.danger:hover{color:var(--crimson);}
+
+  .cr-mid{display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap; padding-left:36px;}
+  .avg-chip{font-family:'Fraunces',serif; font-size:18px; color:var(--ivory);}
+  .avg-chip.empty{color:var(--muted); font-family:'Inter',sans-serif; font-size:12px; font-style:normal;}
+  .status-badge{
+    font-size:10px; font-weight:700; letter-spacing:2px; color:var(--crimson);
+    display:none; align-items:center; gap:6px;
+  }
+  .status-badge.live{display:inline-flex;}
+  .vote-count{font-size:11.5px; color:var(--muted); letter-spacing:0.3px;}
+
+  .cc-actions{padding-left:36px; display:flex; gap:12px;}
+  .start-btn{
+    border:1px solid var(--line-strong); color:var(--ivory); padding:10px 20px;
+    font-size:10.5px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+    transition:background .15s, color .15s;
+  }
+  .start-btn:hover:not(:disabled){background:var(--ivory); color:var(--ink); border-color:var(--ivory);}
+  .start-btn:disabled{opacity:0.3; pointer-events:none;}
+  .end-btn{
+    border:1px solid var(--crimson); color:var(--crimson); padding:10px 20px;
+    font-size:10.5px; font-weight:600; letter-spacing:2px; text-transform:uppercase; display:none;
+  }
+  .end-btn.show{display:inline-block;}
+  .end-btn:hover{background:var(--crimson); color:var(--ivory);}
+  .start-btn.hide{display:none;}
+
+  .footer-note{padding:30px 22px 0; color:var(--muted); font-size:11.5px; line-height:1.8; letter-spacing:0.2px;}
+
+  @media (max-width:420px){
+    .cr-mid, .cc-actions{padding-left:0;}
+  }
+</style>
+</head>
+<body>
+<div class="conn-flag" id="conn-flag">Reconnecting…</div>
+<div id="app"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  const app = document.getElementById('app');
+  const connFlag = document.getElementById('conn-flag');
+  const params = new URLSearchParams(window.location.search);
+  const isAdmin = params.get('admin') === '1' || params.get('admin') === 'true';
+  const deviceId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random());
+
+  const socket = io();
+  socket.on('connect', () => connFlag.classList.remove('show'));
+  socket.on('disconnect', () => connFlag.classList.add('show'));
+  socket.on('connect_error', () => connFlag.classList.add('show'));
+
+  function newId(){
+    return 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  }
+
+  function fmtAvg(v){
+    if(v === null || v === undefined) return null;
+    return (Number.isInteger(v)) ? String(v) : v.toFixed(1);
+  }
+
+  function lotNum(i){
+    return String(i+1).padStart(2,'0');
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[m]));
+  }
+
+  // ============================================================
+  // ADMIN VIEW
+  // ============================================================
+  function renderAdminShell(){
+    app.innerHTML = `
+      <div class="brandbar">
+        <div class="wordmark">LIVE <span>VOTE</span></div>
+        <div class="lot-tag">RUNNING ORDER</div>
+      </div>
+      <div class="admin-wrap">
+        <div class="admin-intro">
+          <h1 class="admin-title serif">The Control Room</h1>
+          <div class="admin-sub">Open the floor to one entry at a time, then close to lock the score.<br>Audience opens this address without <code>?admin=1</code>.</div>
+        </div>
+
+        <div class="add-row">
+          <input id="new-name-input" placeholder="Add a name to the lineup" maxlength="60">
+          <button id="add-btn">+ Add</button>
+        </div>
+
+        <div id="list"></div>
+
+        <div class="footer-note">
+          Marks are whole numbers, 1–10. The final score is the audience average, rounded to the nearest 0.5 — exact ties (such as .25) round down. So 8.1 reads 8, 8.4 reads 8.5, and 8.25 reads 8.
+        </div>
+      </div>
+    `;
+  }
+
+  function buildContestantRow(c, idx){
+    const div = document.createElement('div');
+    div.className = 'contestant-row';
+    div.id = 'card-' + c.id;
+    div.innerHTML = `
+      <div class="cr-top">
+        <span class="cr-lot serif">${lotNum(idx)}</span>
+        <input class="cr-name-input" id="name-input-${c.id}" value="${escapeHtml(c.name)}" maxlength="60">
+        <button class="cr-textbtn" data-id="${c.id}" data-action="save">Rename</button>
+        <button class="cr-textbtn danger" data-id="${c.id}" data-action="delete">Remove</button>
+      </div>
+      <div class="cr-mid">
+        <span class="avg-chip serif empty" id="avg-${c.id}">No score yet</span>
+        <span class="status-badge" id="badge-${c.id}"><span class="live-dot" style="background:currentColor;width:6px;height:6px;border-radius:50%;"></span>LIVE</span>
+        <span class="vote-count" id="count-${c.id}"></span>
+      </div>
+      <div class="cc-actions">
+        <button class="start-btn" id="start-${c.id}" data-id="${c.id}">Open Voting</button>
+        <button class="end-btn" id="end-${c.id}" data-id="${c.id}">Close &amp; Score</button>
+      </div>
+    `;
+    return div;
+  }
+
+  let adminIdsSignature = '';
+  let adminState = null;
+
+  function rebuildListIfNeeded(state){
+    const sig = state.contestants.map(c=>c.id).join(',');
+    if(sig !== adminIdsSignature){
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      state.contestants.forEach((c,i) => list.appendChild(buildContestantRow(c,i)));
+      adminIdsSignature = sig;
+      attachListEvents();
+    }
+  }
+
+  function attachListEvents(){
+    document.querySelectorAll('.cr-textbtn[data-action="save"]').forEach(btn=>{
+      btn.onclick = () => {
+        const id = btn.dataset.id;
+        const input = document.getElementById('name-input-' + id);
+        const val = input.value.trim();
+        if(!val) return;
+        socket.emit('admin:renameContestant', {id, name: val});
+        const orig = btn.textContent;
+        btn.textContent = 'Saved';
+        setTimeout(()=>{ btn.textContent = orig; }, 1100);
+      };
+    });
+    document.querySelectorAll('.cr-textbtn[data-action="delete"]').forEach(btn=>{
+      btn.onclick = () => {
+        const id = btn.dataset.id;
+        if(adminState && adminState.currentId === id) return;
+        socket.emit('admin:deleteContestant', {id});
+      };
+    });
+    document.querySelectorAll('.start-btn').forEach(btn=>{
+      btn.onclick = () => {
+        const id = btn.dataset.id;
+        socket.emit('admin:startVoting', {id});
+      };
+    });
+    document.querySelectorAll('.end-btn').forEach(btn=>{
+      btn.onclick = () => {
+        btn.disabled = true;
+        btn.textContent = 'Scoring…';
+        socket.emit('admin:endVoting');
+      };
+    });
+  }
+
+  function updateDynamic(state){
+    state.contestants.forEach(c => {
+      const avgEl = document.getElementById('avg-' + c.id);
+      const badgeEl = document.getElementById('badge-' + c.id);
+      const startBtn = document.getElementById('start-' + c.id);
+      const endBtn = document.getElementById('end-' + c.id);
+      const countEl = document.getElementById('count-' + c.id);
+      const rowEl = document.getElementById('card-' + c.id);
+      if(!avgEl) return;
+
+      const f = fmtAvg(c.avg);
+      if(f === null){ avgEl.textContent = 'No score yet'; avgEl.classList.add('empty'); }
+      else { avgEl.textContent = f + ' / 10'; avgEl.classList.remove('empty'); }
+
+      const isActive = state.votingActive && state.currentId === c.id;
+      badgeEl.classList.toggle('live', isActive);
+      rowEl.classList.toggle('active-row', isActive);
+
+      if(isActive){
+        startBtn.classList.add('hide');
+        endBtn.classList.add('show');
+        endBtn.disabled = false;
+        endBtn.textContent = 'Close & Score';
+      } else {
+        endBtn.classList.remove('show');
+        const otherActive = state.votingActive && state.currentId !== c.id;
+        startBtn.disabled = !!otherActive;
+        startBtn.classList.remove('hide');
+      }
+
+      if(!isActive){
+        countEl.textContent = '';
+      }
+    });
+  }
+
+  function updateVoteCount(sessionId, count){
+    if(!adminState || adminState.sessionId !== sessionId) return;
+    const countEl = document.getElementById('count-' + adminState.currentId);
+    if(!countEl) return;
+    countEl.textContent = count + ' vote' + (count===1?'':'s') + ' received';
+  }
+
+  function initAdmin(){
+    renderAdminShell();
+
+    document.getElementById('add-btn').onclick = () => {
+      const input = document.getElementById('new-name-input');
+      const val = input.value.trim();
+      if(!val) return;
+      socket.emit('admin:addContestant', {name: val});
+      input.value = '';
+    };
+    document.getElementById('new-name-input').addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter') document.getElementById('add-btn').click();
+    });
+
+    socket.on('state', (state) => {
+      adminState = state;
+      rebuildListIfNeeded(state);
+      updateDynamic(state);
+    });
+    socket.on('voteCount', ({sessionId, count}) => updateVoteCount(sessionId, count));
+  }
+
+  // ============================================================
+  // AUDIENCE VIEW
+  // ============================================================
+  let votedSessionId = null;
+  let selectedScore = null;
+  let lastRenderedKey = null;
+
+  function renderAudience(state){
+    const active = state.votingActive && state.currentId;
+    const contestant = active ? state.contestants.find(c=>c.id===state.currentId) : null;
+
+    if(active && contestant && votedSessionId !== state.sessionId){
+      const renderKey = 'voting_' + state.sessionId;
+      if(lastRenderedKey !== renderKey){
+        lastRenderedKey = renderKey;
+        selectedScore = null;
+        app.innerHTML = `
+          <div class="brandbar">
+            <div class="wordmark">LIVE <span>VOTE</span></div>
+            <div class="lot-tag">AUDIENCE BALLOT</div>
+          </div>
+          <div class="aud-wrap">
+            <div class="live-tag tracked"><span class="live-dot"></span>Now Scoring</div>
+            <div class="eyebrow tracked">Cast one mark</div>
+            <h1 class="contestant-name serif">${escapeHtml(contestant.name)}</h1>
+            <div class="num-grid" id="num-grid"></div>
+            <button class="submit-btn" id="submit-btn" disabled>Select a mark</button>
+          </div>
+        `;
+        const grid = document.getElementById('num-grid');
+        for(let i=1;i<=10;i++){
+          const b = document.createElement('button');
+          b.className = 'num-btn';
+          b.textContent = i;
+          b.dataset.val = i;
+          b.onclick = () => {
+            selectedScore = i;
+            document.querySelectorAll('.num-btn').forEach(el=>el.classList.remove('selected'));
+            b.classList.add('selected');
+            const sb = document.getElementById('submit-btn');
+            sb.disabled = false;
+            sb.classList.add('armed');
+            sb.textContent = 'Submit ' + i + ' of 10';
+          };
+          grid.appendChild(b);
+        }
+        document.getElementById('submit-btn').onclick = () => {
+          if(selectedScore === null) return;
+          const sb = document.getElementById('submit-btn');
+          sb.disabled = true;
+          sb.textContent = 'Submitting';
+          socket.emit('audience:submitVote', {
+            sessionId: state.sessionId,
+            deviceId,
+            score: selectedScore
+          });
+          votedSessionId = state.sessionId;
+          lastRenderedKey = null;
+          renderThanks(contestant, true);
+        };
+      }
+      return;
+    }
+
+    if(active && contestant && votedSessionId === state.sessionId){
+      renderThanks(contestant, true);
+      return;
+    }
+
+    renderThanks(null, false);
+  }
+
+  function renderThanks(contestant, justVoted){
+    const key = justVoted ? ('thanks_' + (contestant?contestant.id:'')) : 'idle';
+    if(lastRenderedKey === key) return;
+    lastRenderedKey = key;
+    app.innerHTML = `
+      <div class="brandbar">
+        <div class="wordmark">LIVE <span>VOTE</span></div>
+        <div class="lot-tag">AUDIENCE BALLOT</div>
+      </div>
+      <div class="aud-wrap">
+        <div class="mark-glyph">${justVoted ? '✓' : '—'}</div>
+        <h1 class="thanks-title serif">${justVoted ? 'Thank You' : 'Welcome'}</h1>
+        <div class="rule-sm"></div>
+        <div class="thanks-sub">
+          ${justVoted
+            ? 'Your mark has been recorded. The floor reopens for the next entry'
+            : 'The ballot will open here the moment the next entry takes the floor'}
+          <span class="waiting-dots"><span>.</span><span>.</span><span>.</span></span>
+        </div>
+      </div>
+    `;
+  }
+
+  function initAudience(){
+    renderThanks(null, false);
+    socket.on('state', (state) => renderAudience(state));
+  }
+
+  // ============================================================
+  if(isAdmin){
+    initAdmin();
+  } else {
+    initAudience();
+  }
+
+})();
+</script>
+</body>
+</html>
