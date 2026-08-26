@@ -24,10 +24,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 function defaultState() {
   return {
     contestants: [
-      { id: 'c1', name: 'Contestant 1', avg: null },
-      { id: 'c2', name: 'Contestant 2', avg: null },
-      { id: 'c3', name: 'Contestant 3', avg: null },
-      { id: 'c4', name: 'Contestant 4', avg: null }
+      { id: 'c1', name: 'Contestant 1', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c2', name: 'Contestant 2', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c3', name: 'Contestant 3', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c4', name: 'Contestant 4', avg: null, audienceAvg: null, judgeAvg: null }
     ],
     currentId: null,
     sessionId: null,
@@ -50,6 +50,19 @@ function roundToHalf(avg) {
   const frac = scaled - floor;
   const rounded = Math.abs(frac - 0.5) < 1e-9 ? floor : Math.round(scaled);
   return rounded / 2;
+}
+
+// Final score = average of the audience average and the judges' average, same
+// rounding rule as everything else. If only one of the two exists yet, that
+// one stands in as the final score on its own so ranking still works with
+// partial data (e.g. judges haven't marked someone yet).
+function combineScores(c) {
+  const hasAud = c.audienceAvg !== null && c.audienceAvg !== undefined;
+  const hasJudge = c.judgeAvg !== null && c.judgeAvg !== undefined;
+  if (hasAud && hasJudge) return roundToHalf((c.audienceAvg + c.judgeAvg) / 2);
+  if (hasAud) return c.audienceAvg;
+  if (hasJudge) return c.judgeAvg;
+  return null;
 }
 
 // ---------------- local cache (instant, disk-only fallback) ----------------
@@ -180,7 +193,7 @@ io.on('connection', (socket) => {
 
   socket.on('admin:addContestant', ({ name }) => {
     if (!name || !name.trim()) return;
-    const c = { id: newId(), name: name.trim(), avg: null };
+    const c = { id: newId(), name: name.trim(), avg: null, audienceAvg: null, judgeAvg: null };
     state.contestants.push(c);
     persistContestant({ ...c, sortOrder: state.contestants.length - 1, active: true });
     broadcastState();
@@ -237,6 +250,8 @@ io.on('connection', (socket) => {
     }
     qualifiers.forEach((c) => {
       c.avg = null; // fresh scoring for the new round
+      c.audienceAvg = null;
+      c.judgeAvg = null;
     });
 
     state.contestants = qualifiers;
@@ -248,7 +263,7 @@ io.on('connection', (socket) => {
     saveLocalCache();
     db.saveAppState(state);
     db.setSortOrders(qualifiers.map((c) => c.id));
-    qualifiers.forEach((c) => db.upsertContestant({ id: c.id, name: c.name, avg: null }));
+    qualifiers.forEach((c) => db.upsertContestant({ id: c.id, name: c.name, avg: null, audienceAvg: null, judgeAvg: null }));
     eliminated.forEach((c) => db.setContestantActive(c.id, false));
 
     broadcastState();
@@ -264,14 +279,14 @@ io.on('connection', (socket) => {
     if (db.isUp()) {
       const all = await db.fetchAllContestants();
       if (all && all.length) {
-        contestants = all.map((c) => ({ id: c.id, name: c.name, avg: null }));
+        contestants = all.map((c) => ({ id: c.id, name: c.name, avg: null, audienceAvg: null, judgeAvg: null }));
         await db.resetAllContestants();
       }
     }
     if (!contestants) {
       // No Supabase (or it's empty) — can't recover previously eliminated
       // contestants, so just clear scores on whoever's in the current lineup.
-      contestants = state.contestants.map((c) => ({ ...c, avg: null }));
+      contestants = state.contestants.map((c) => ({ ...c, avg: null, audienceAvg: null, judgeAvg: null }));
     }
 
     state = {
@@ -308,7 +323,8 @@ io.on('connection', (socket) => {
     const c = state.contestants.find((x) => x.id === state.currentId);
     if (c && scores.length > 0) {
       const raw = scores.reduce((a, b) => a + b, 0) / scores.length;
-      c.avg = roundToHalf(raw);
+      c.audienceAvg = roundToHalf(raw);
+      c.avg = combineScores(c);
       persistContestant(c);
     }
     delete votesBySession[endedSessionId];
@@ -317,6 +333,25 @@ io.on('connection', (socket) => {
     state.sessionId = null;
     persistAppState();
     db.deleteVotesForSession(endedSessionId); // round is over, its raw votes aren't needed anymore
+    broadcastState();
+  });
+
+  // Admin enters (or clears) a judges' average for a contestant. Independent
+  // of the audience vote — can be set before, during, or after it. The final
+  // score is recomputed immediately so ranking always reflects both.
+  socket.on('admin:setJudgeAvg', ({ id, score }) => {
+    const c = state.contestants.find((x) => x.id === id);
+    if (!c) return;
+
+    if (score === null || score === undefined || score === '') {
+      c.judgeAvg = null;
+    } else {
+      const n = parseFloat(score);
+      if (isNaN(n) || n < 0 || n > 10) return;
+      c.judgeAvg = Math.round(n * 2) / 2; // snap to nearest 0.5, same granularity as everything else
+    }
+    c.avg = combineScores(c);
+    persistContestant(c);
     broadcastState();
   });
 

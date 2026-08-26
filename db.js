@@ -6,28 +6,42 @@ function isUp() {
 
 // ---------------- contestants ----------------
 
+function mapRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    avg: row.avg,
+    audienceAvg: row.audience_avg,
+    judgeAvg: row.judge_avg
+  };
+}
+
 async function fetchContestants() {
   if (!isUp()) return null; // null = "couldn't reach Supabase", caller should fall back
   try {
     const { data, error } = await supabase
       .from('contestants')
-      .select('id, name, avg')
+      .select('id, name, avg, audience_avg, judge_avg')
       .eq('active', true)
       .order('sort_order', { ascending: true });
     if (error) throw error;
-    return data;
+    return data.map(mapRow);
   } catch (e) {
     console.error('[supabase] fetchContestants failed:', e.message);
     return null;
   }
 }
 
-// c: { id, name, avg, sortOrder?, active? }. sortOrder/active are only written
-// when explicitly provided, so a plain rename/score update doesn't disturb them.
+// c: { id, name, avg, audienceAvg?, judgeAvg?, sortOrder?, active? }. Optional
+// fields are only written when explicitly provided (not undefined), so e.g. a
+// plain rename doesn't disturb sortOrder/active, and a judges-avg update alone
+// doesn't disturb audienceAvg.
 async function upsertContestant(c) {
   if (!isUp()) return false;
   try {
     const payload = { id: c.id, name: c.name, avg: c.avg };
+    if (c.audienceAvg !== undefined) payload.audience_avg = c.audienceAvg;
+    if (c.judgeAvg !== undefined) payload.judge_avg = c.judgeAvg;
     if (c.sortOrder !== undefined) payload.sort_order = c.sortOrder;
     if (c.active !== undefined) payload.active = c.active;
     const { error } = await supabase.from('contestants').upsert(payload, { onConflict: 'id' });
@@ -77,10 +91,10 @@ async function fetchAllContestants() {
   try {
     const { data, error } = await supabase
       .from('contestants')
-      .select('id, name, avg')
+      .select('id, name, avg, audience_avg, judge_avg')
       .order('sort_order', { ascending: true });
     if (error) throw error;
-    return data;
+    return data.map(mapRow);
   } catch (e) {
     console.error('[supabase] fetchAllContestants failed:', e.message);
     return null;
@@ -88,13 +102,13 @@ async function fetchAllContestants() {
 }
 
 // Reactivates every contestant (including ones eliminated in a previous
-// round) and clears their score, for "back to Round 1".
+// round) and clears every score, for "back to Round 1".
 async function resetAllContestants() {
   if (!isUp()) return false;
   try {
     const { error } = await supabase
       .from('contestants')
-      .update({ active: true, avg: null })
+      .update({ active: true, avg: null, audience_avg: null, judge_avg: null })
       .not('id', 'is', null); // matches every row; Supabase requires a filter
     if (error) throw error;
     return true;

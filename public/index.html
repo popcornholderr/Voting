@@ -150,6 +150,17 @@
   .status-badge.live{display:inline-flex;}
   .vote-count{font-size:11.5px; color:var(--muted); letter-spacing:0.3px;}
 
+  .cr-judge{display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; padding-left:36px;}
+  .cr-judge-label{font-size:10px; font-weight:600; color:var(--muted); letter-spacing:1.6px; text-transform:uppercase;}
+  .cr-judge-input{
+    width:64px; background:transparent; border:none; border-bottom:1px solid var(--line-strong);
+    color:var(--ivory); font-family:'Fraunces',serif; font-style:italic; font-size:15px; padding:4px 2px;
+  }
+  .cr-judge-input:hover, .cr-judge-input:focus{border-bottom:1px solid var(--ivory-dim);}
+  .cr-judge-input::placeholder{color:var(--muted); font-style:italic;}
+  .final-chip{font-family:'Fraunces',serif; font-size:16px; color:var(--crimson); font-weight:600;}
+  .final-chip.empty{color:var(--muted); font-family:'Inter',sans-serif; font-size:11.5px; font-weight:400; font-style:normal;}
+
   .cc-actions{padding-left:36px; display:flex; gap:12px;}
   .start-btn{
     border:1px solid var(--line-strong); color:var(--ivory); padding:10px 20px;
@@ -197,7 +208,8 @@
   .res-row.muted-row{opacity:0.5;}
   .res-rank{width:26px; font-size:15px; color:var(--muted); flex-shrink:0;}
   .res-name{flex:1; font-size:18px; font-style:italic;}
-  .res-score{font-size:14px; color:var(--ivory-dim); white-space:nowrap;}
+  .res-score{font-size:14px; color:var(--ivory-dim); white-space:nowrap; text-align:right;}
+  .res-breakdown{display:block; font-size:10px; color:var(--muted); font-family:'Inter',sans-serif; font-style:normal; letter-spacing:0.2px; margin-top:2px;}
   .res-tag{
     font-size:9.5px; font-weight:700; letter-spacing:1.6px; color:var(--crimson);
     border:1px solid var(--crimson); padding:4px 8px; white-space:nowrap;
@@ -279,7 +291,7 @@
         <div id="list"></div>
 
         <div class="footer-note">
-          Marks are whole numbers, 1–10. The final score is the audience average, rounded to the nearest 0.5 — exact ties (such as .25) round down. So 8.1 reads 8, 8.4 reads 8.5, and 8.25 reads 8.
+          Audience marks are whole numbers, 1–10, averaged and rounded to the nearest 0.5 — exact ties (such as .25) round down. Judges' marks are entered directly (also 0–10, nearest 0.5). The <strong>Final</strong> score is the average of the two, rounded the same way, and that's what contestants are ranked on. If only one side has marked so far, Final just shows that one.
         </div>
       </div>
     `;
@@ -298,9 +310,15 @@
         <button class="cr-textbtn danger" data-id="${c.id}" data-action="delete">Remove</button>
       </div>
       <div class="cr-mid">
-        <span class="avg-chip serif empty" id="avg-${c.id}">No score yet</span>
+        <span class="avg-chip serif empty" id="avg-aud-${c.id}">Audience: —</span>
         <span class="status-badge" id="badge-${c.id}"><span class="live-dot" style="background:currentColor;width:6px;height:6px;border-radius:50%;"></span>LIVE</span>
         <span class="vote-count" id="count-${c.id}"></span>
+      </div>
+      <div class="cr-judge">
+        <label class="cr-judge-label tracked" for="judge-input-${c.id}">Judges' Avg</label>
+        <input class="cr-judge-input" id="judge-input-${c.id}" type="number" min="0" max="10" step="0.5" placeholder="—" value="${c.judgeAvg !== null && c.judgeAvg !== undefined ? c.judgeAvg : ''}">
+        <button class="cr-textbtn" data-id="${c.id}" data-action="save-judge">Save</button>
+        <span class="avg-chip serif final-chip empty" id="avg-final-${c.id}">Final: —</span>
       </div>
       <div class="cc-actions">
         <button class="start-btn" id="start-${c.id}" data-id="${c.id}">Open Voting</button>
@@ -405,6 +423,25 @@
         socket.emit('admin:deleteContestant', {id});
       };
     });
+    document.querySelectorAll('.cr-textbtn[data-action="save-judge"]').forEach(btn=>{
+      btn.onclick = () => {
+        const id = btn.dataset.id;
+        const input = document.getElementById('judge-input-' + id);
+        const val = input.value.trim();
+        socket.emit('admin:setJudgeAvg', {id, score: val === '' ? null : val});
+        const orig = btn.textContent;
+        btn.textContent = 'Saved';
+        setTimeout(()=>{ btn.textContent = orig; }, 1100);
+      };
+    });
+    document.querySelectorAll('.cr-judge-input').forEach(input=>{
+      input.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter'){
+          const id = input.id.replace('judge-input-','');
+          document.querySelector('.cr-textbtn[data-action="save-judge"][data-id="'+id+'"]').click();
+        }
+      });
+    });
     document.querySelectorAll('.start-btn').forEach(btn=>{
       btn.onclick = () => {
         const id = btn.dataset.id;
@@ -422,17 +459,22 @@
 
   function updateDynamic(state){
     state.contestants.forEach(c => {
-      const avgEl = document.getElementById('avg-' + c.id);
+      const audEl = document.getElementById('avg-aud-' + c.id);
+      const finalEl = document.getElementById('avg-final-' + c.id);
       const badgeEl = document.getElementById('badge-' + c.id);
       const startBtn = document.getElementById('start-' + c.id);
       const endBtn = document.getElementById('end-' + c.id);
       const countEl = document.getElementById('count-' + c.id);
       const rowEl = document.getElementById('card-' + c.id);
-      if(!avgEl) return;
+      if(!audEl) return;
 
-      const f = fmtAvg(c.avg);
-      if(f === null){ avgEl.textContent = 'No score yet'; avgEl.classList.add('empty'); }
-      else { avgEl.textContent = f + ' / 10'; avgEl.classList.remove('empty'); }
+      const fa = fmtAvg(c.audienceAvg);
+      if(fa === null){ audEl.textContent = 'Audience: —'; audEl.classList.add('empty'); }
+      else { audEl.textContent = 'Audience: ' + fa; audEl.classList.remove('empty'); }
+
+      const ff = fmtAvg(c.avg);
+      if(ff === null){ finalEl.textContent = 'Final: —'; finalEl.classList.add('empty'); }
+      else { finalEl.textContent = 'Final: ' + ff + ' / 10'; finalEl.classList.remove('empty'); }
 
       const isActive = state.votingActive && state.currentId === c.id;
       badgeEl.classList.toggle('live', isActive);
@@ -522,7 +564,9 @@
       <div class="res-row ${qualifyingIds.has(c.id) ? 'advancing' : ''}">
         <span class="res-rank serif">${i+1}</span>
         <span class="res-name serif">${escapeHtml(c.name)}</span>
-        <span class="res-score serif">${fmtAvg(c.avg)} / 10</span>
+        <span class="res-score serif">${fmtAvg(c.avg)} / 10
+          <span class="res-breakdown">Aud ${fmtAvg(c.audienceAvg) || '—'} · Judges ${fmtAvg(c.judgeAvg) || '—'}</span>
+        </span>
         ${qualifyingIds.has(c.id) ? '<span class="res-tag">Advances</span>' : ''}
       </div>
     `).join('');
@@ -546,7 +590,7 @@
       <div class="admin-wrap">
         <div class="admin-intro">
           <h1 class="admin-title serif">Results</h1>
-          <div class="admin-sub">Ranked highest to lowest. Top 50% (ties included) advance to the next round.</div>
+          <div class="admin-sub">Ranked by Final score (audience + judges, averaged), highest to lowest. Top 50% (ties included) advance to the next round.</div>
         </div>
         <div id="results-list">${rows}${unscoredRows}</div>
         <div class="results-actions">

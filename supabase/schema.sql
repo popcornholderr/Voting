@@ -5,18 +5,27 @@
 --    sort_order is the admin's running-order / drag-and-drop position.
 --    active=false means "eliminated in a previous round" — kept for history,
 --    but excluded from the current lineup.
+-- avg = the FINAL score (what contestants are ranked on). If both an audience
+-- average and a judges' average exist, avg is their average, rounded to the
+-- nearest 0.5 with exact ties rounding down — same rule as the audience avg
+-- itself. audience_avg and judge_avg are kept separately so the breakdown can
+-- still be shown/edited independently.
 create table if not exists public.contestants (
-  id          text primary key,
-  name        text not null,
-  avg         numeric,
-  sort_order  int not null default 0,
-  active      boolean not null default true,
-  created_at  timestamptz not null default now()
+  id            text primary key,
+  name          text not null,
+  avg           numeric,
+  audience_avg  numeric,
+  judge_avg     numeric,
+  sort_order    int not null default 0,
+  active        boolean not null default true,
+  created_at    timestamptz not null default now()
 );
 
 -- Safe to re-run even if you already created this table before these columns existed.
 alter table public.contestants add column if not exists sort_order int not null default 0;
 alter table public.contestants add column if not exists active boolean not null default true;
+alter table public.contestants add column if not exists audience_avg numeric;
+alter table public.contestants add column if not exists judge_avg numeric;
 
 -- 2. App state: a single row holding "what's happening right now"
 --    (which contestant is live, current session id, whether voting is open,
