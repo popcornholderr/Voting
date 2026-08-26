@@ -16,6 +16,28 @@ function mapRow(row) {
   };
 }
 
+// Quick boot-time probe: is the `contestants` table missing audience_avg /
+// judge_avg (i.e. the schema.sql migration for judges' marks hasn't been run
+// yet)? If so, every fetch/upsert touching those columns fails, and the app
+// silently falls back to whatever's in local-cache.json — which can look
+// like "the judges' marks feature just doesn't work" with no obvious cause.
+// This gives one loud, unmissable line in the server log instead.
+async function checkSchema() {
+  if (!isUp()) return;
+  try {
+    const { error } = await supabase.from('contestants').select('audience_avg, judge_avg').limit(1);
+    if (error) throw error;
+  } catch (e) {
+    console.error(
+      '\n' +
+      '⚠️  Supabase is missing the audience_avg / judge_avg columns on `contestants`.\n' +
+      '   Judges\' marks and the combined Final score will NOT persist correctly\n' +
+      '   until you run the migration: open Supabase → SQL Editor → New query,\n' +
+      '   paste the contents of supabase/schema.sql, and run it.\n'
+    );
+  }
+}
+
 async function fetchContestants() {
   if (!isUp()) return null; // null = "couldn't reach Supabase", caller should fall back
   try {
@@ -27,6 +49,24 @@ async function fetchContestants() {
     if (error) throw error;
     return data.map(mapRow);
   } catch (e) {
+    // audience_avg/judge_avg missing (migration not run)? Still read what we
+    // can (id, name, avg) rather than failing the whole boot and silently
+    // reverting to a possibly stale local-cache.json. checkSchema() already
+    // logged the loud warning about this at boot.
+    if (/audience_avg|judge_avg/i.test(e.message || '')) {
+      try {
+        const { data, error } = await supabase
+          .from('contestants')
+          .select('id, name, avg')
+          .eq('active', true)
+          .order('sort_order', { ascending: true });
+        if (error) throw error;
+        return data.map((row) => ({ id: row.id, name: row.name, avg: row.avg, audienceAvg: row.avg, judgeAvg: null }));
+      } catch (e2) {
+        console.error('[supabase] fetchContestants fallback also failed:', e2.message);
+        return null;
+      }
+    }
     console.error('[supabase] fetchContestants failed:', e.message);
     return null;
   }
@@ -234,6 +274,7 @@ module.exports = {
   fetchContestants,
   fetchAllContestants,
   resetAllContestants,
+  checkSchema,
   upsertContestant,
   setContestantActive,
   setSortOrders,

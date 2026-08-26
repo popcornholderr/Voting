@@ -52,16 +52,17 @@ function roundToHalf(avg) {
   return rounded / 2;
 }
 
-// Final score = average of the audience average and the judges' average, same
-// rounding rule as everything else. If only one of the two exists yet, that
-// one stands in as the final score on its own so ranking still works with
-// partial data (e.g. judges haven't marked someone yet).
+// Final score = average of the audience average and the judges' average,
+// rounded to the nearest 0.5 (ties round down) — same rule as everywhere
+// else, but applied ONCE, at the end. audienceAvg itself is stored as the
+// exact raw average (not pre-rounded), so nothing gets rounded twice before
+// landing on the Final number.
 function combineScores(c) {
   const hasAud = c.audienceAvg !== null && c.audienceAvg !== undefined;
   const hasJudge = c.judgeAvg !== null && c.judgeAvg !== undefined;
   if (hasAud && hasJudge) return roundToHalf((c.audienceAvg + c.judgeAvg) / 2);
-  if (hasAud) return c.audienceAvg;
-  if (hasJudge) return c.judgeAvg;
+  if (hasAud) return roundToHalf(c.audienceAvg);
+  if (hasJudge) return roundToHalf(c.judgeAvg);
   return null;
 }
 
@@ -92,6 +93,8 @@ function loadLocalCache() {
 
 async function initState() {
   let loadedFromSupabase = false;
+
+  await db.checkSchema();
 
   if (db.isUp()) {
     const [contestants, appState] = await Promise.all([
@@ -323,7 +326,7 @@ io.on('connection', (socket) => {
     const c = state.contestants.find((x) => x.id === state.currentId);
     if (c && scores.length > 0) {
       const raw = scores.reduce((a, b) => a + b, 0) / scores.length;
-      c.audienceAvg = roundToHalf(raw);
+      c.audienceAvg = raw; // exact, unrounded — rounding happens once, on the Final
       c.avg = combineScores(c);
       persistContestant(c);
     }
