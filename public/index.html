@@ -264,7 +264,10 @@
               <div class="admin-sub">Open the floor to one entry at a time, then close to lock the score.<br>Audience opens this address without <code>?admin=1</code>.</div>
               <span class="round-badge tracked" id="round-badge">Round 1</span>
             </div>
-            <button class="cr-textbtn results-link" id="results-btn">Results →</button>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
+              <button class="cr-textbtn results-link" id="results-btn">Results →</button>
+              <button class="cr-textbtn danger" id="reset-round-btn">↺ Back to Round 1</button>
+            </div>
           </div>
         </div>
 
@@ -336,8 +339,16 @@
       e.preventDefault();
       const list = document.getElementById('list');
       row.classList.add('dragging');
-      try { handle.setPointerCapture(e.pointerId); } catch(err){}
 
+      // NOTE: listeners live on `document`, not on `handle`. Every time a drag
+      // crosses a sibling's midpoint we call list.insertBefore(row, sib) to move
+      // the row's DOM node — and moving a node that's holding pointer capture
+      // makes the browser silently release that capture. If we listened on
+      // `handle` (with setPointerCapture) like before, the very first reorder
+      // mid-drag would kill all subsequent pointermove/pointerup events, which
+      // is why dragging felt "stuck" after one hop. Document-level listeners
+      // don't care where the pointer physically is, so this survives any
+      // number of reorders during a single drag.
       const onMove = (ev) => {
         const y = ev.clientY;
         const siblings = Array.from(list.children).filter(r => r !== row);
@@ -353,12 +364,11 @@
         if(!placed) list.appendChild(row);
       };
 
-      const onUp = (ev) => {
+      const onUp = () => {
         row.classList.remove('dragging');
-        try { handle.releasePointerCapture(ev.pointerId); } catch(err){}
-        handle.removeEventListener('pointermove', onMove);
-        handle.removeEventListener('pointerup', onUp);
-        handle.removeEventListener('pointercancel', onUp);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
 
         const newOrder = Array.from(list.children).map(r => r.id.replace('card-',''));
         Array.from(list.children).forEach((r,i) => {
@@ -369,9 +379,9 @@
         socket.emit('admin:reorderContestants', {ids: newOrder});
       };
 
-      handle.addEventListener('pointermove', onMove);
-      handle.addEventListener('pointerup', onUp);
-      handle.addEventListener('pointercancel', onUp);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     });
   }
 
@@ -470,12 +480,24 @@
       adminView = 'results';
       renderResultsView(adminState);
     };
+    document.getElementById('reset-round-btn').onclick = () => {
+      if(adminState && adminState.votingActive){
+        alert('Close the current vote before resetting.');
+        return;
+      }
+      const ok = confirm('Back to Round 1?\n\nThis brings back every contestant (including any eliminated in later rounds) and clears every score. This can\'t be undone.');
+      if(!ok) return;
+      socket.emit('admin:resetToRound1');
+      adminIdsSignature = ''; // force a full rebuild once the reset state arrives
+    };
     if(adminState) updateRoundBadge(adminState);
   }
 
   function updateRoundBadge(state){
     const el = document.getElementById('round-badge');
     if(el) el.textContent = 'Round ' + (state.round || 1);
+    const resetBtn = document.getElementById('reset-round-btn');
+    if(resetBtn) resetBtn.disabled = !!state.votingActive;
   }
 
   // Top 50% by score, ties at the cutoff included (so a tie never arbitrarily

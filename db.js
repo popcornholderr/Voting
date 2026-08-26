@@ -70,6 +70,40 @@ async function setSortOrders(idsInOrder) {
   }
 }
 
+// Everyone who's ever been added, active or soft-deleted (eliminated),
+// ordered the way they'll come back into the lineup on a full reset.
+async function fetchAllContestants() {
+  if (!isUp()) return null;
+  try {
+    const { data, error } = await supabase
+      .from('contestants')
+      .select('id, name, avg')
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('[supabase] fetchAllContestants failed:', e.message);
+    return null;
+  }
+}
+
+// Reactivates every contestant (including ones eliminated in a previous
+// round) and clears their score, for "back to Round 1".
+async function resetAllContestants() {
+  if (!isUp()) return false;
+  try {
+    const { error } = await supabase
+      .from('contestants')
+      .update({ active: true, avg: null })
+      .not('id', 'is', null); // matches every row; Supabase requires a filter
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('[supabase] resetAllContestants failed:', e.message);
+    return false;
+  }
+}
+
 async function deleteContestant(id) {
   // Kept for completeness, but the app uses setContestantActive(id, false) instead
   // so eliminated/removed contestants remain in Supabase for history.
@@ -184,6 +218,8 @@ async function deleteVotesForSession(sessionId) {
 module.exports = {
   isUp,
   fetchContestants,
+  fetchAllContestants,
+  resetAllContestants,
   upsertContestant,
   setContestantActive,
   setSortOrders,

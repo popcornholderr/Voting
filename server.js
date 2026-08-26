@@ -254,6 +254,40 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
+  // Full reset: brings back every contestant ever added (including ones
+  // eliminated in later rounds), clears every score, and drops the round
+  // counter back to 1. Only allowed between votes, same as starting a round.
+  socket.on('admin:resetToRound1', async () => {
+    if (state.votingActive) return;
+
+    let contestants = null;
+    if (db.isUp()) {
+      const all = await db.fetchAllContestants();
+      if (all && all.length) {
+        contestants = all.map((c) => ({ id: c.id, name: c.name, avg: null }));
+        await db.resetAllContestants();
+      }
+    }
+    if (!contestants) {
+      // No Supabase (or it's empty) — can't recover previously eliminated
+      // contestants, so just clear scores on whoever's in the current lineup.
+      contestants = state.contestants.map((c) => ({ ...c, avg: null }));
+    }
+
+    state = {
+      contestants,
+      currentId: null,
+      sessionId: null,
+      votingActive: false,
+      round: 1
+    };
+    votesBySession = {};
+
+    saveLocalCache();
+    db.saveAppState(state);
+    broadcastState();
+  });
+
   socket.on('admin:startVoting', ({ id }) => {
     const c = state.contestants.find((x) => x.id === id);
     if (!c) return;
