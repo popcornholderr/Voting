@@ -2,7 +2,7 @@
   "name": "live-vote",
   "version": "1.0.0",
   "private": true,
-  "description": "Live audience voting app with a real-time admin panel",
+  "description": "Live audience + judges voting app with a real-time admin panel (Talent / Catent rounds)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

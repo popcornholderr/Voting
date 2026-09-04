@@ -6,7 +6,7 @@
 <title>Live Vote</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340;0,9..144,480;0,9..144,600;1,9..144,420;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340;0,9..144,480;0,9..144,600;0,9..144,700;1,9..144,420;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0c0c0d;
@@ -17,6 +17,7 @@
     --line:rgba(244,241,233,0.14);
     --line-strong:rgba(244,241,233,0.32);
     --crimson:#d81f26;
+    --gold:#e0b24a;
     --muted:#8f8b80;
   }
   *{box-sizing:border-box;}
@@ -52,7 +53,7 @@
   .wordmark span{color:var(--crimson);}
   .lot-tag{font-size:11px; color:var(--muted); letter-spacing:2px;}
 
-  /* ---------- AUDIENCE ---------- */
+  /* ---------- AUDIENCE / JUDGE BALLOT ---------- */
   .aud-wrap{
     flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:40px 24px 56px; text-align:center;
@@ -64,6 +65,13 @@
   }
   .live-dot{width:6px;height:6px;border-radius:50%;background:var(--crimson); animation:pulse 1.6s infinite;}
   @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:0.25;}}
+
+  .vote-timer{
+    font-family:'Fraunces',serif; font-variant-numeric:tabular-nums;
+    font-size:15px; color:var(--ivory-dim); letter-spacing:1px;
+    margin-bottom:22px; padding:5px 14px; border:1px solid var(--line-strong);
+  }
+  .vote-timer.done{color:var(--muted); border-color:var(--line);}
 
   .eyebrow{font-size:11px; color:var(--muted); margin-bottom:16px;}
   .contestant-name{
@@ -105,118 +113,166 @@
   .waiting-dots span:nth-child(3){animation-delay:.44s;}
   @keyframes blink{0%,100%{opacity:0.15;}50%{opacity:0.9;}}
 
-  /* ---------- ADMIN ---------- */
-  .admin-wrap{max-width:640px; margin:0 auto; width:100%; padding:0 0 90px;}
-  .admin-intro{padding:26px 22px 8px;}
-  .admin-title{font-size:26px; font-weight:480; font-style:italic; margin:0 0 6px 0;}
-  .admin-sub{color:var(--muted); font-size:12.5px; letter-spacing:0.2px; line-height:1.6;}
-  .admin-sub code{color:var(--ivory-dim); background:var(--ink-3); padding:1px 6px; font-family:'Inter',monospace; font-size:11px;}
+  .judge-badge{
+    display:inline-flex; align-items:center; gap:8px; margin-bottom:18px;
+    padding:6px 14px; border:1px solid var(--gold); color:var(--gold);
+    font-size:11px; font-weight:700; letter-spacing:2px;
+  }
 
-  .add-row{display:flex; align-items:flex-end; gap:16px; padding:26px 22px; border-bottom:1px solid var(--line);}
+  /* ---------- ADMIN: shell ---------- */
+  .admin-wrap{max-width:640px; margin:0 auto; width:100%; padding:0 0 90px;}
+
+  .tabbar{display:flex; gap:2px; padding:14px 22px 0;}
+  .tab-btn{
+    flex:1; padding:14px 10px; text-align:center; border:1px solid var(--line);
+    background:var(--ink-2); color:var(--muted);
+    font-size:13px; font-weight:700; letter-spacing:1px;
+    transition:all .15s ease;
+  }
+  .tab-btn .tab-icon{margin-right:7px;}
+  .tab-btn.live{color:var(--ivory-dim); border-color:var(--line-strong);}
+  .tab-btn.active{background:var(--crimson); color:var(--ivory); border-color:var(--crimson);}
+  .tab-btn:not(.active):hover{color:var(--ivory);}
+
+  .topbar-actions{display:flex; justify-content:flex-end; gap:16px; padding:14px 22px 0;}
+  .top-link{font-size:10.5px; font-weight:600; letter-spacing:1.6px; color:var(--muted); text-transform:uppercase;}
+  .top-link:hover{color:var(--ivory);}
+  .top-link.danger:hover{color:var(--crimson);}
+
+  .admin-intro{padding:18px 22px 4px;}
+  .admin-title{font-size:24px; font-weight:600; font-style:italic; margin:0 0 4px 0; font-family:'Fraunces',serif;}
+  .admin-sub{color:var(--muted); font-size:12px; letter-spacing:0.2px; line-height:1.5;}
+
+  .add-row{display:flex; align-items:center; gap:12px; padding:20px 22px; border-bottom:1px solid var(--line);}
   .add-row input{
-    flex:1; background:transparent; border:none; border-bottom:1px solid var(--line-strong);
-    padding:8px 2px; color:var(--ivory); font-size:16px; font-family:'Fraunces',serif; font-style:italic;
+    flex:1; background:var(--ink-2); border:1px solid var(--line-strong);
+    padding:12px 14px; color:var(--ivory); font-size:16px; font-family:'Fraunces',serif; font-style:italic;
   }
   .add-row input::placeholder{color:var(--muted); font-style:italic;}
   .add-row button{
-    color:var(--ivory-dim); font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
-    padding:9px 0; border-bottom:1px solid transparent; white-space:nowrap;
+    background:var(--ivory); color:var(--ink); font-size:12px; font-weight:700; letter-spacing:1px;
+    padding:13px 18px; white-space:nowrap;
   }
-  .add-row button:hover{color:var(--ivory); border-color:var(--ivory-dim);}
+  .add-row button:hover{background:var(--gold);}
 
+  /* ---------- ADMIN: contestant cards ---------- */
   .contestant-row{
-    padding:22px 22px; border-bottom:1px solid var(--line); transition:background .2s;
+    padding:18px 22px; border-bottom:1px solid var(--line); transition:background .2s;
   }
-  .contestant-row.active-row{background:rgba(216,31,38,0.05);}
-  .cr-top{display:flex; align-items:baseline; gap:14px; margin-bottom:14px;}
-  .cr-lot{font-family:'Fraunces',serif; font-size:13px; color:var(--muted); min-width:22px;}
+  .contestant-row.active-row{background:rgba(216,31,38,0.06);}
+  .cr-top{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
+  .cr-drag{
+    cursor:grab; touch-action:none; user-select:none;
+    color:var(--muted); font-size:15px; letter-spacing:1px;
+    padding:4px 4px 4px 0; line-height:1;
+  }
+  .cr-drag:hover{color:var(--ivory-dim);}
+  .cr-lot{font-family:'Fraunces',serif; font-size:12px; color:var(--muted); min-width:20px;}
   .cr-name-input{
     flex:1; background:transparent; border:none; border-bottom:1px solid transparent;
     color:var(--ivory); font-family:'Fraunces',serif; font-style:italic; font-size:19px;
-    padding:2px 0; min-width:100px;
+    padding:2px 0; min-width:80px;
   }
   .cr-name-input:hover, .cr-name-input:focus{border-bottom:1px solid var(--line-strong);}
-  .cr-textbtn{font-size:10.5px; font-weight:600; letter-spacing:1.6px; color:var(--muted); text-transform:uppercase; white-space:nowrap;}
-  .cr-textbtn:hover{color:var(--ivory);}
-  .cr-textbtn.danger:hover{color:var(--crimson);}
+  .cr-icon-btn{font-size:15px; color:var(--muted); padding:4px;}
+  .cr-icon-btn:hover{color:var(--crimson);}
 
-  .cr-mid{display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap; padding-left:36px;}
-  .avg-chip{font-family:'Fraunces',serif; font-size:18px; color:var(--ivory);}
-  .avg-chip.empty{color:var(--muted); font-family:'Inter',sans-serif; font-size:12px; font-style:normal;}
+  .stat-row{display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+  .stat-chip{
+    display:inline-flex; align-items:center; gap:5px;
+    font-family:'Fraunces',serif; font-size:13px; color:var(--ivory-dim);
+    background:var(--ink-2); border:1px solid var(--line); padding:6px 10px;
+  }
+  .stat-chip .stat-label{font-family:'Inter',sans-serif; font-size:9.5px; color:var(--muted); letter-spacing:1px; text-transform:uppercase;}
+  .stat-chip.final{color:var(--gold); border-color:rgba(224,178,74,0.4); font-weight:600;}
+  .stat-chip.empty{color:var(--muted); font-family:'Inter',sans-serif; font-size:11px; font-style:normal;}
   .status-badge{
-    font-size:10px; font-weight:700; letter-spacing:2px; color:var(--crimson);
-    display:none; align-items:center; gap:6px;
+    font-size:9.5px; font-weight:700; letter-spacing:1.6px; color:var(--crimson);
+    display:none; align-items:center; gap:5px;
   }
   .status-badge.live{display:inline-flex;}
-  .vote-count{font-size:11.5px; color:var(--muted); letter-spacing:0.3px;}
+  .vote-count{font-size:11px; color:var(--muted); letter-spacing:0.2px;}
 
-  .cr-judge{display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; padding-left:36px;}
-  .cr-judge-label{font-size:10px; font-weight:600; color:var(--muted); letter-spacing:1.6px; text-transform:uppercase;}
-  .cr-judge-input{
-    width:64px; background:transparent; border:none; border-bottom:1px solid var(--line-strong);
-    color:var(--ivory); font-family:'Fraunces',serif; font-style:italic; font-size:15px; padding:4px 2px;
-  }
-  .cr-judge-input:hover, .cr-judge-input:focus{border-bottom:1px solid var(--ivory-dim);}
-  .cr-judge-input::placeholder{color:var(--muted); font-style:italic;}
-  .final-chip{font-family:'Fraunces',serif; font-size:16px; color:var(--crimson); font-weight:600;}
-  .final-chip.empty{color:var(--muted); font-family:'Inter',sans-serif; font-size:11.5px; font-weight:400; font-style:normal;}
-
-  .cc-actions{padding-left:36px; display:flex; gap:12px;}
+  .cc-actions{display:flex; gap:10px;}
   .start-btn{
-    border:1px solid var(--line-strong); color:var(--ivory); padding:10px 20px;
-    font-size:10.5px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+    border:1px solid var(--line-strong); color:var(--ivory); padding:11px 18px;
+    font-size:10.5px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase;
     transition:background .15s, color .15s;
   }
   .start-btn:hover:not(:disabled){background:var(--ivory); color:var(--ink); border-color:var(--ivory);}
   .start-btn:disabled{opacity:0.3; pointer-events:none;}
   .end-btn{
-    border:1px solid var(--crimson); color:var(--crimson); padding:10px 20px;
-    font-size:10.5px; font-weight:600; letter-spacing:2px; text-transform:uppercase; display:none;
+    border:1px solid var(--crimson); color:var(--crimson); padding:11px 18px;
+    font-size:10.5px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; display:none;
   }
   .end-btn.show{display:inline-block;}
   .end-btn:hover{background:var(--crimson); color:var(--ivory);}
   .start-btn.hide{display:none;}
 
-  .footer-note{padding:30px 22px 0; color:var(--muted); font-size:11.5px; line-height:1.8; letter-spacing:0.2px;}
-
-  @media (max-width:420px){
-    .cr-mid, .cc-actions{padding-left:0;}
-  }
-
-  /* ---------- ADMIN: header row + round badge + results link ---------- */
-  .admin-intro-row{display:flex; justify-content:space-between; align-items:flex-start; gap:16px;}
-  .round-badge{display:block; margin-top:8px; color:var(--ivory-dim); font-size:11px; letter-spacing:1.5px; text-transform:uppercase;}
-  .results-link{white-space:nowrap; padding:9px 0; border-bottom:1px solid transparent;}
-  .results-link:hover{color:var(--ivory); border-color:var(--ivory-dim);}
-
-  /* ---------- ADMIN: drag to reorder ---------- */
-  .cr-drag{
-    cursor:grab; touch-action:none; user-select:none;
-    color:var(--muted); font-size:15px; letter-spacing:1px;
-    padding:4px 8px 4px 0; line-height:1;
-  }
-  .cr-drag:hover{color:var(--ivory-dim);}
-  .contestant-row.dragging{opacity:0.4;}
   .contestant-row{touch-action:pan-y;}
+  .contestant-row.dragging{opacity:0.4;}
 
-  /* ---------- ADMIN: results view ---------- */
+  /* ---------- ADMIN: judge links panel ---------- */
+  .judge-panel{padding:20px 22px; border-bottom:1px solid var(--line);}
+  .judge-panel-title{font-size:11px; font-weight:700; letter-spacing:1.6px; color:var(--muted); text-transform:uppercase; margin-bottom:12px;}
+  .judge-links{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .judge-link-btn{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:var(--ink-2); border:1px solid var(--line); padding:10px 12px;
+    font-size:12px; color:var(--ivory-dim);
+  }
+  .judge-link-btn:hover{border-color:var(--line-strong); color:var(--ivory);}
+  .judge-link-btn .copy-hint{font-size:9px; color:var(--muted); letter-spacing:1px; text-transform:uppercase;}
+
+  .footer-note{padding:20px 22px 0; color:var(--muted); font-size:11px; line-height:1.7; letter-spacing:0.2px;}
+
+  /* ---------- ADMIN: bottom action bar ---------- */
+  .action-bar{display:flex; flex-direction:column; gap:10px; padding:22px;}
+  .action-bar button{
+    padding:15px; font-size:12px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase;
+    text-align:center;
+  }
+  .action-primary{background:var(--gold); color:var(--ink);}
+  .action-primary:hover:not(:disabled){filter:brightness(1.08);}
+  .action-primary:disabled{opacity:0.3; pointer-events:none;}
+  .action-secondary{border:1px solid var(--line-strong); color:var(--ivory);}
+  .action-secondary:hover{background:var(--ivory); color:var(--ink);}
+
+  /* ---------- ADMIN: results / archived / locked ---------- */
   .res-row{
-    display:flex; align-items:center; gap:14px; padding:16px 22px;
+    display:flex; align-items:center; gap:14px; padding:15px 22px;
     border-bottom:1px solid var(--line);
   }
   .res-row.advancing{background:rgba(216,31,38,0.06);}
+  .res-row.winner{background:rgba(224,178,74,0.09);}
   .res-row.muted-row{opacity:0.5;}
   .res-rank{width:26px; font-size:15px; color:var(--muted); flex-shrink:0;}
-  .res-name{flex:1; font-size:18px; font-style:italic;}
+  .res-rank.gold{color:var(--gold); font-weight:700;}
+  .res-name{flex:1; font-size:17px; font-style:italic; font-family:'Fraunces',serif;}
   .res-score{font-size:14px; color:var(--ivory-dim); white-space:nowrap; text-align:right;}
-  .res-breakdown{display:block; font-size:10px; color:var(--muted); font-family:'Inter',sans-serif; font-style:normal; letter-spacing:0.2px; margin-top:2px;}
+  .res-breakdown{display:block; font-size:9.5px; color:var(--muted); font-family:'Inter',sans-serif; font-style:normal; letter-spacing:0.2px; margin-top:2px;}
   .res-tag{
-    font-size:9.5px; font-weight:700; letter-spacing:1.6px; color:var(--crimson);
-    border:1px solid var(--crimson); padding:4px 8px; white-space:nowrap;
+    font-size:9px; font-weight:700; letter-spacing:1.4px; white-space:nowrap;
+    border:1px solid var(--crimson); color:var(--crimson); padding:4px 8px;
   }
+  .res-tag.winner-tag{border-color:var(--gold); color:var(--gold);}
   .results-actions{
-    display:flex; justify-content:space-between; align-items:center; gap:16px;
-    padding:26px 22px;
+    display:flex; flex-direction:column; gap:10px;
+    padding:22px;
+  }
+
+  .locked-box, .archived-box{
+    margin:20px 22px; padding:26px 20px; border:1px dashed var(--line-strong);
+    text-align:center; color:var(--muted); font-size:13px; line-height:1.7;
+  }
+  .archived-tag{
+    display:inline-block; margin:0 22px 0; padding:6px 12px; font-size:10px;
+    font-weight:700; letter-spacing:1.6px; color:var(--muted); border:1px solid var(--line);
+    text-transform:uppercase;
+  }
+
+  @media (max-width:460px){
+    .judge-links{grid-template-columns:1fr;}
   }
 </style>
 </head>
@@ -233,6 +289,9 @@
   const connFlag = document.getElementById('conn-flag');
   const params = new URLSearchParams(window.location.search);
   const isAdmin = params.get('admin') === '1' || params.get('admin') === 'true';
+  const judgeParam = params.get('judge');
+  const isJudge = ['1','2','3','4'].includes(judgeParam);
+  const judgeNum = isJudge ? parseInt(judgeParam, 10) : null;
   const deviceId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random());
 
   const socket = io();
@@ -240,9 +299,8 @@
   socket.on('disconnect', () => connFlag.classList.add('show'));
   socket.on('connect_error', () => connFlag.classList.add('show'));
 
-  function newId(){
-    return 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-  }
+  const ROUND_NAME = { 1: 'Talent', 2: 'Catent' };
+  const ROUND_ICON = { 1: '🎤', 2: '🏆' };
 
   function fmtAvg(v){
     if(v === null || v === undefined) return null;
@@ -259,66 +317,256 @@
     }[m]));
   }
 
+  function judgeLinkUrl(n){
+    return window.location.origin + window.location.pathname + '?judge=' + n;
+  }
+
   // ============================================================
-  // ADMIN VIEW
+  // SHARED: scoring ballot (used by both audience and each judge)
   // ============================================================
-  function renderAdminShell(){
+  let votedSessionId = null;
+  let selectedScore = null;
+  let lastRenderedKey = null;
+  let ballotTimerInterval = null;
+  const BALLOT_SECONDS = 30;
+
+  // sessionId is built server-side as `${contestantId}_${Date.now()}` — the
+  // timestamp is always the last underscore-separated segment, so this works
+  // even if a contestant id itself contains underscores.
+  function sessionStartedAt(sessionId){
+    const ts = parseInt(sessionId.slice(sessionId.lastIndexOf('_') + 1), 10);
+    return isNaN(ts) ? Date.now() : ts;
+  }
+
+  function stopBallotTimer(){
+    if(ballotTimerInterval){
+      clearInterval(ballotTimerInterval);
+      ballotTimerInterval = null;
+    }
+  }
+
+  // Purely a formality — a visual 30s countdown so voters feel a sense of
+  // pace. It never disables the submit button and never ends voting itself;
+  // only the admin's "Close & Score" actually ends a vote, any time they like.
+  function startBallotTimer(sessionId){
+    stopBallotTimer();
+    const startedAt = sessionStartedAt(sessionId);
+    const tick = () => {
+      const el = document.getElementById('vote-timer');
+      if(!el){ stopBallotTimer(); return; }
+      const remaining = BALLOT_SECONDS - Math.floor((Date.now() - startedAt) / 1000);
+      if(remaining > 0){
+        el.textContent = '0:' + String(remaining).padStart(2,'0');
+        el.classList.remove('done');
+      } else {
+        el.textContent = "Time's up";
+        el.classList.add('done');
+      }
+    };
+    tick();
+    ballotTimerInterval = setInterval(tick, 250);
+  }
+
+  function renderScoringPage(state, ballotTag, submitFn, showTimer){
+    const active = state.votingActive && state.currentId;
+    const contestant = active ? state.contestants.find(c=>c.id===state.currentId) : null;
+
+    if(active && contestant && votedSessionId !== state.sessionId){
+      const renderKey = 'voting_' + state.sessionId;
+      if(lastRenderedKey !== renderKey){
+        lastRenderedKey = renderKey;
+        selectedScore = null;
+        app.innerHTML = `
+          <div class="brandbar">
+            <div class="wordmark">LIVE <span>VOTE</span></div>
+            <div class="lot-tag">${ballotTag}</div>
+          </div>
+          <div class="aud-wrap">
+            <div class="live-tag tracked"><span class="live-dot"></span>Now Scoring &middot; ${ROUND_NAME[state.round || 1]}</div>
+            ${showTimer ? '<div class="vote-timer" id="vote-timer">0:30</div>' : ''}
+            <div class="eyebrow tracked">Cast one mark</div>
+            <h1 class="contestant-name serif">${escapeHtml(contestant.name)}</h1>
+            <div class="num-grid" id="num-grid"></div>
+            <button class="submit-btn" id="submit-btn" disabled>Select a mark</button>
+          </div>
+        `;
+        if(showTimer) startBallotTimer(state.sessionId); else stopBallotTimer();
+        const grid = document.getElementById('num-grid');
+        for(let i=1;i<=10;i++){
+          const b = document.createElement('button');
+          b.className = 'num-btn';
+          b.textContent = i;
+          b.dataset.val = i;
+          b.onclick = () => {
+            selectedScore = i;
+            document.querySelectorAll('.num-btn').forEach(el=>el.classList.remove('selected'));
+            b.classList.add('selected');
+            const sb = document.getElementById('submit-btn');
+            sb.disabled = false;
+            sb.classList.add('armed');
+            sb.textContent = 'Submit ' + i + ' of 10';
+          };
+          grid.appendChild(b);
+        }
+        document.getElementById('submit-btn').onclick = () => {
+          if(selectedScore === null) return;
+          const sb = document.getElementById('submit-btn');
+          sb.disabled = true;
+          sb.textContent = 'Submitting';
+          submitFn(selectedScore, state.sessionId);
+          votedSessionId = state.sessionId;
+          lastRenderedKey = null;
+          stopBallotTimer();
+          renderThanks(contestant, true, ballotTag);
+        };
+      }
+      return;
+    }
+
+    if(active && contestant && votedSessionId === state.sessionId){
+      stopBallotTimer();
+      renderThanks(contestant, true, ballotTag);
+      return;
+    }
+
+    stopBallotTimer();
+    renderThanks(null, false, ballotTag);
+  }
+
+  function renderThanks(contestant, justVoted, ballotTag){
+    const key = (justVoted ? ('thanks_' + (contestant?contestant.id:'')) : 'idle') + '_' + ballotTag;
+    if(lastRenderedKey === key) return;
+    lastRenderedKey = key;
+    stopBallotTimer();
     app.innerHTML = `
       <div class="brandbar">
         <div class="wordmark">LIVE <span>VOTE</span></div>
-        <div class="lot-tag">RUNNING ORDER</div>
+        <div class="lot-tag">${ballotTag}</div>
       </div>
-      <div class="admin-wrap">
-        <div class="admin-intro">
-          <div class="admin-intro-row">
-            <div>
-              <h1 class="admin-title serif">The Control Room</h1>
-              <div class="admin-sub">Open the floor to one entry at a time, then close to lock the score.<br>Audience opens this address without <code>?admin=1</code>.</div>
-              <span class="round-badge tracked" id="round-badge">Round 1</span>
-            </div>
-            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-              <button class="cr-textbtn results-link" id="results-btn">Results →</button>
-              <button class="cr-textbtn danger" id="reset-round-btn">↺ Back to Round 1</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="add-row">
-          <input id="new-name-input" placeholder="Add a name to the lineup" maxlength="60">
-          <button id="add-btn">+ Add</button>
-        </div>
-
-        <div id="list"></div>
-
-        <div class="footer-note">
-          Audience marks are whole numbers, 1–10. The audience average is kept exact (not pre-rounded) so nothing gets rounded twice. Judges' marks are entered directly, 0–10 in steps of 0.5. The <strong>Final</strong> score is the average of the exact audience average and the judges' mark, rounded to the nearest 0.5 — exact ties (like .25) round down — and that's what contestants are ranked on. If only one side has marked so far, Final is just that side, rounded the same way.
+      <div class="aud-wrap">
+        <div class="mark-glyph">${justVoted ? '✓' : '—'}</div>
+        <h1 class="thanks-title serif">${justVoted ? 'Thank You' : 'Welcome'}</h1>
+        <div class="rule-sm"></div>
+        <div class="thanks-sub">
+          ${justVoted
+            ? 'Your mark has been recorded. The floor reopens for the next entry'
+            : 'The ballot will open here the moment the next entry takes the floor'}
+          <span class="waiting-dots"><span>.</span><span>.</span><span>.</span></span>
         </div>
       </div>
     `;
   }
 
-  function buildContestantRow(c, idx){
+  function initAudience(){
+    renderThanks(null, false, 'AUDIENCE BALLOT');
+    socket.on('state', (state) => renderScoringPage(state, 'AUDIENCE BALLOT', (score, sessionId) => {
+      socket.emit('audience:submitVote', { sessionId, deviceId, score });
+    }, true));
+  }
+
+  function initJudge(n){
+    const tag = 'JUDGE ' + n + ' BALLOT';
+    app.innerHTML = `
+      <div class="brandbar"><div class="wordmark">LIVE <span>VOTE</span></div><div class="lot-tag">${tag}</div></div>
+      <div class="aud-wrap"><div class="judge-badge">⚖ Judge ${n}</div><div class="thanks-sub">Connecting…</div></div>
+    `;
+    lastRenderedKey = null;
+    socket.on('state', (state) => renderScoringPage(state, tag, (score, sessionId) => {
+      socket.emit('judge:submitVote', { sessionId, judgeNum: n, score });
+    }, false));
+  }
+
+  // ============================================================
+  // ADMIN VIEW
+  // ============================================================
+  let adminState = null;
+  let adminTab = null;      // 'talent' | 'catent' — which tab the admin is looking at
+  let adminSubview = 'lineup'; // 'lineup' | 'results' — only meaningful on the live tab
+  let adminIdsSignature = '';
+  let lastVoteCounts = null; // { sessionId, audienceCount, judgeCount, judgeTotal }
+
+  function liveTabKey(state){
+    return (state.round || 1) === 2 ? 'catent' : 'talent';
+  }
+
+  function renderTopChrome(state, activeTabKey){
+    return `
+      <div class="brandbar">
+        <div class="wordmark">LIVE <span>VOTE</span></div>
+        <div class="lot-tag">${ROUND_NAME[state.round || 1].toUpperCase()} IS LIVE</div>
+      </div>
+      <div class="tabbar">
+        <button class="tab-btn ${activeTabKey==='talent'?'active':''} ${liveTabKey(state)==='talent'?'live':''}" data-tab="talent">
+          <span class="tab-icon">🎤</span>Talent
+        </button>
+        <button class="tab-btn ${activeTabKey==='catent'?'active':''} ${liveTabKey(state)==='catent'?'live':''}" data-tab="catent">
+          <span class="tab-icon">🏆</span>Catent
+        </button>
+      </div>
+      <div class="topbar-actions">
+        <button class="top-link" id="results-toggle-btn">${adminSubview==='results' ? '← Back to lineup' : 'Results →'}</button>
+        <button class="top-link danger" id="reset-all-btn">↺ Start Over</button>
+      </div>
+    `;
+  }
+
+  function attachTopChromeEvents(state){
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.onclick = () => {
+        adminTab = btn.dataset.tab;
+        adminSubview = 'lineup';
+        adminIdsSignature = '';
+        renderAdmin(state);
+      };
+    });
+    const resultsBtn = document.getElementById('results-toggle-btn');
+    if(resultsBtn){
+      resultsBtn.onclick = () => {
+        adminSubview = adminSubview === 'results' ? 'lineup' : 'results';
+        adminIdsSignature = '';
+        renderAdmin(state);
+      };
+    }
+    const resetBtn = document.getElementById('reset-all-btn');
+    if(resetBtn){
+      resetBtn.onclick = () => {
+        if(adminState && adminState.votingActive){
+          alert('Close the current vote before starting over.');
+          return;
+        }
+        const ok = confirm('Start over completely?\n\nThis brings back every contestant ever added and clears every score, back to the very first Talent lineup. This can\'t be undone.');
+        if(!ok) return;
+        socket.emit('admin:resetToRound1');
+        adminTab = null;
+        adminSubview = 'lineup';
+        adminIdsSignature = '';
+      };
+    }
+  }
+
+  // ---------- live lineup (the round currently in progress) ----------
+
+  function buildContestantRow(c, idx, state){
     const div = document.createElement('div');
     div.className = 'contestant-row';
     div.id = 'card-' + c.id;
+    const aud = fmtAvg(c.audienceAvg);
+    const judge = fmtAvg(c.judgeAvg);
+    const final = fmtAvg(c.avg);
     div.innerHTML = `
       <div class="cr-top">
         <span class="cr-drag" title="Drag to reorder">⠿</span>
         <span class="cr-lot serif">${lotNum(idx)}</span>
         <input class="cr-name-input" id="name-input-${c.id}" value="${escapeHtml(c.name)}" maxlength="60">
-        <button class="cr-textbtn" data-id="${c.id}" data-action="save">Rename</button>
-        <button class="cr-textbtn danger" data-id="${c.id}" data-action="delete">Remove</button>
+        <button class="cr-icon-btn" data-id="${c.id}" data-action="save" title="Save name">✓</button>
+        <button class="cr-icon-btn" data-id="${c.id}" data-action="delete" title="Remove">✕</button>
       </div>
-      <div class="cr-mid">
-        <span class="avg-chip serif empty" id="avg-aud-${c.id}">Audience: —</span>
+      <div class="stat-row">
+        <span class="stat-chip ${aud===null?'empty':''}" id="chip-aud-${c.id}"><span class="stat-label">Audience</span>${aud===null?'—':aud}</span>
+        <span class="stat-chip ${judge===null?'empty':''}" id="chip-judge-${c.id}"><span class="stat-label">Judges</span>${judge===null?'—':judge}</span>
+        <span class="stat-chip final ${final===null?'empty':''}" id="chip-final-${c.id}"><span class="stat-label">Final</span>${final===null?'—':final}</span>
         <span class="status-badge" id="badge-${c.id}"><span class="live-dot" style="background:currentColor;width:6px;height:6px;border-radius:50%;"></span>LIVE</span>
         <span class="vote-count" id="count-${c.id}"></span>
-      </div>
-      <div class="cr-judge">
-        <label class="cr-judge-label tracked" for="judge-input-${c.id}">Judges' Avg</label>
-        <input class="cr-judge-input" id="judge-input-${c.id}" type="number" min="0" max="10" step="0.5" placeholder="—" value="${c.judgeAvg !== null && c.judgeAvg !== undefined ? c.judgeAvg : ''}">
-        <button class="cr-textbtn" data-id="${c.id}" data-action="save-judge">Save</button>
-        <span class="avg-chip serif final-chip empty" id="avg-final-${c.id}">Final: —</span>
       </div>
       <div class="cc-actions">
         <button class="start-btn" id="start-${c.id}" data-id="${c.id}">Open Voting</button>
@@ -328,16 +576,14 @@
     return div;
   }
 
-  let adminIdsSignature = '';
-  let adminState = null;
-
   function rebuildListIfNeeded(state){
     const sig = state.contestants.map(c=>c.id).join(',');
     if(sig !== adminIdsSignature){
       const list = document.getElementById('list');
+      if(!list) return;
       list.innerHTML = '';
       state.contestants.forEach((c,i) => {
-        const row = buildContestantRow(c,i);
+        const row = buildContestantRow(c,i,state);
         list.appendChild(row);
         makeRowDraggable(row);
       });
@@ -347,8 +593,7 @@
   }
 
   // Drag a row (via its handle) up or down to reorder the lineup. Works with
-  // both mouse and touch through Pointer Events. On release, the new order is
-  // sent to the server, and every row's lot number is renumbered live.
+  // both mouse and touch through Pointer Events.
   function makeRowDraggable(row){
     const handle = row.querySelector('.cr-drag');
     if(!handle) return;
@@ -358,15 +603,6 @@
       const list = document.getElementById('list');
       row.classList.add('dragging');
 
-      // NOTE: listeners live on `document`, not on `handle`. Every time a drag
-      // crosses a sibling's midpoint we call list.insertBefore(row, sib) to move
-      // the row's DOM node — and moving a node that's holding pointer capture
-      // makes the browser silently release that capture. If we listened on
-      // `handle` (with setPointerCapture) like before, the very first reorder
-      // mid-drag would kill all subsequent pointermove/pointerup events, which
-      // is why dragging felt "stuck" after one hop. Document-level listeners
-      // don't care where the pointer physically is, so this survives any
-      // number of reorders during a single drag.
       const onMove = (ev) => {
         const y = ev.clientY;
         const siblings = Array.from(list.children).filter(r => r !== row);
@@ -393,7 +629,7 @@
           const lotEl = r.querySelector('.cr-lot');
           if(lotEl) lotEl.textContent = lotNum(i);
         });
-        adminIdsSignature = newOrder.join(','); // matches what the server will echo back
+        adminIdsSignature = newOrder.join(',');
         socket.emit('admin:reorderContestants', {ids: newOrder});
       };
 
@@ -404,43 +640,21 @@
   }
 
   function attachListEvents(){
-    document.querySelectorAll('.cr-textbtn[data-action="save"]').forEach(btn=>{
+    document.querySelectorAll('.cr-icon-btn[data-action="save"]').forEach(btn=>{
       btn.onclick = () => {
         const id = btn.dataset.id;
         const input = document.getElementById('name-input-' + id);
         const val = input.value.trim();
         if(!val) return;
         socket.emit('admin:renameContestant', {id, name: val});
-        const orig = btn.textContent;
-        btn.textContent = 'Saved';
-        setTimeout(()=>{ btn.textContent = orig; }, 1100);
       };
     });
-    document.querySelectorAll('.cr-textbtn[data-action="delete"]').forEach(btn=>{
+    document.querySelectorAll('.cr-icon-btn[data-action="delete"]').forEach(btn=>{
       btn.onclick = () => {
         const id = btn.dataset.id;
         if(adminState && adminState.currentId === id) return;
         socket.emit('admin:deleteContestant', {id});
       };
-    });
-    document.querySelectorAll('.cr-textbtn[data-action="save-judge"]').forEach(btn=>{
-      btn.onclick = () => {
-        const id = btn.dataset.id;
-        const input = document.getElementById('judge-input-' + id);
-        const val = input.value.trim();
-        socket.emit('admin:setJudgeAvg', {id, score: val === '' ? null : val});
-        const orig = btn.textContent;
-        btn.textContent = 'Saved';
-        setTimeout(()=>{ btn.textContent = orig; }, 1100);
-      };
-    });
-    document.querySelectorAll('.cr-judge-input').forEach(input=>{
-      input.addEventListener('keydown', (e)=>{
-        if(e.key === 'Enter'){
-          const id = input.id.replace('judge-input-','');
-          document.querySelector('.cr-textbtn[data-action="save-judge"][data-id="'+id+'"]').click();
-        }
-      });
     });
     document.querySelectorAll('.start-btn').forEach(btn=>{
       btn.onclick = () => {
@@ -459,22 +673,24 @@
 
   function updateDynamic(state){
     state.contestants.forEach(c => {
-      const audEl = document.getElementById('avg-aud-' + c.id);
-      const finalEl = document.getElementById('avg-final-' + c.id);
+      const chipAud = document.getElementById('chip-aud-' + c.id);
+      const chipJudge = document.getElementById('chip-judge-' + c.id);
+      const chipFinal = document.getElementById('chip-final-' + c.id);
       const badgeEl = document.getElementById('badge-' + c.id);
       const startBtn = document.getElementById('start-' + c.id);
       const endBtn = document.getElementById('end-' + c.id);
       const countEl = document.getElementById('count-' + c.id);
       const rowEl = document.getElementById('card-' + c.id);
-      if(!audEl) return;
+      if(!chipAud) return;
 
-      const fa = fmtAvg(c.audienceAvg);
-      if(fa === null){ audEl.textContent = 'Audience: —'; audEl.classList.add('empty'); }
-      else { audEl.textContent = 'Audience: ' + fa; audEl.classList.remove('empty'); }
-
-      const ff = fmtAvg(c.avg);
-      if(ff === null){ finalEl.textContent = 'Final: —'; finalEl.classList.add('empty'); }
-      else { finalEl.textContent = 'Final: ' + ff + ' / 10'; finalEl.classList.remove('empty'); }
+      const setChip = (el, val, labelHtmlPrefix) => {
+        const v = fmtAvg(val);
+        el.innerHTML = labelHtmlPrefix + (v===null?'—':v);
+        el.classList.toggle('empty', v===null);
+      };
+      setChip(chipAud, c.audienceAvg, '<span class="stat-label">Audience</span>');
+      setChip(chipJudge, c.judgeAvg, '<span class="stat-label">Judges</span>');
+      setChip(chipFinal, c.avg, '<span class="stat-label">Final</span>');
 
       const isActive = state.votingActive && state.currentId === c.id;
       badgeEl.classList.toggle('live', isActive);
@@ -498,16 +714,48 @@
     });
   }
 
-  function updateVoteCount(sessionId, count){
+  function updateVoteCount(sessionId, audienceCount, judgeCount, judgeTotal){
     if(!adminState || adminState.sessionId !== sessionId) return;
     const countEl = document.getElementById('count-' + adminState.currentId);
     if(!countEl) return;
-    countEl.textContent = count + ' vote' + (count===1?'':'s') + ' received';
+    countEl.innerHTML = audienceCount + ' audience &middot; ' + judgeCount + '/' + judgeTotal + ' judges';
   }
 
-  let adminView = 'lineup'; // 'lineup' | 'results'
+  function renderLiveLineup(state){
+    const roundNum = state.round || 1;
+    app.innerHTML = `
+      ${renderTopChrome(state, adminTab)}
+      <div class="admin-wrap">
+        <div class="admin-intro">
+          <h1 class="admin-title">${ROUND_NAME[roundNum]} &mdash; Running Order</h1>
+          <div class="admin-sub">Open one entry at a time. Audience and judges vote from their own links; averages fill in automatically once you close a vote.</div>
+        </div>
 
-  function attachShellEvents(){
+        <div class="add-row">
+          <input id="new-name-input" placeholder="Add a contestant name" maxlength="60">
+          <button id="add-btn">+ Add</button>
+        </div>
+
+        <div id="list"></div>
+
+        <div class="judge-panel">
+          <div class="judge-panel-title">Judge links &middot; hand one to each judge</div>
+          <div class="judge-links">
+            ${[1,2,3,4].map(n => `<button class="judge-link-btn" data-judge="${n}"><span>Judge ${n}</span><span class="copy-hint">Tap to copy</span></button>`).join('')}
+          </div>
+        </div>
+
+        <div class="footer-note">
+          Audience marks 1&ndash;10 average into <strong>Audience</strong>. The four judges' marks average into <strong>Judges</strong>. <strong>Final</strong> is the average of the two &mdash; every average rounds to the closest 0.5. That's what contestants are ranked on.
+        </div>
+
+        <div class="results-actions">
+          <button class="top-link results-link" id="see-results-btn" style="text-align:center; padding-top:6px;">See ${ROUND_NAME[roundNum]} results →</button>
+        </div>
+      </div>
+    `;
+    attachTopChromeEvents(state);
+
     document.getElementById('add-btn').onclick = () => {
       const input = document.getElementById('new-name-input');
       const val = input.value.trim();
@@ -518,33 +766,40 @@
     document.getElementById('new-name-input').addEventListener('keydown', (e)=>{
       if(e.key === 'Enter') document.getElementById('add-btn').click();
     });
-    document.getElementById('results-btn').onclick = () => {
-      adminView = 'results';
-      renderResultsView(adminState);
+    document.getElementById('see-results-btn').onclick = () => {
+      adminSubview = 'results';
+      adminIdsSignature = '';
+      renderAdmin(state);
     };
-    document.getElementById('reset-round-btn').onclick = () => {
-      if(adminState && adminState.votingActive){
-        alert('Close the current vote before resetting.');
-        return;
-      }
-      const ok = confirm('Back to Round 1?\n\nThis brings back every contestant (including any eliminated in later rounds) and clears every score. This can\'t be undone.');
-      if(!ok) return;
-      socket.emit('admin:resetToRound1');
-      adminIdsSignature = ''; // force a full rebuild once the reset state arrives
-    };
-    if(adminState) updateRoundBadge(adminState);
+    document.querySelectorAll('.judge-link-btn').forEach(btn => {
+      btn.onclick = () => {
+        const n = btn.dataset.judge;
+        const url = judgeLinkUrl(n);
+        const done = () => {
+          const hint = btn.querySelector('.copy-hint');
+          const orig = hint.textContent;
+          hint.textContent = 'Copied!';
+          setTimeout(()=>{ hint.textContent = orig; }, 1200);
+        };
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(url).then(done).catch(()=>prompt('Copy this link:', url));
+        } else {
+          prompt('Copy this link:', url);
+        }
+      };
+    });
+
+    adminIdsSignature = '';
+    rebuildListIfNeeded(state);
+    updateDynamic(state);
+    if(state.votingActive && lastVoteCounts && lastVoteCounts.sessionId === state.sessionId){
+      updateVoteCount(lastVoteCounts.sessionId, lastVoteCounts.audienceCount, lastVoteCounts.judgeCount, lastVoteCounts.judgeTotal);
+    }
   }
 
-  function updateRoundBadge(state){
-    const el = document.getElementById('round-badge');
-    if(el) el.textContent = 'Round ' + (state.round || 1);
-    const resetBtn = document.getElementById('reset-round-btn');
-    if(resetBtn) resetBtn.disabled = !!state.votingActive;
-  }
+  // ---------- results (live round) ----------
 
-  // Top 50% by score, ties at the cutoff included (so a tie never arbitrarily
-  // knocks someone out). Unscored contestants can't advance.
-  function computeRanking(contestants){
+  function computeTalentQualifiers(contestants){
     const scored = contestants.filter(c => c.avg !== null && c.avg !== undefined);
     const unscored = contestants.filter(c => c.avg === null || c.avg === undefined);
     const sorted = [...scored].sort((a,b) => b.avg - a.avg);
@@ -557,193 +812,184 @@
     return { sorted, unscored, qualifyingIds };
   }
 
-  function renderResultsView(state){
-    const { sorted, unscored, qualifyingIds } = computeRanking(state.contestants);
+  function computeCatentWinners(contestants){
+    const scored = contestants.filter(c => c.avg !== null && c.avg !== undefined);
+    const unscored = contestants.filter(c => c.avg === null || c.avg === undefined);
+    const sorted = [...scored].sort((a,b) => b.avg - a.avg);
+    const winnerIds = new Set(sorted.slice(0,3).map(c => c.id));
+    return { sorted, unscored, winnerIds };
+  }
 
-    const rows = sorted.map((c,i) => `
-      <div class="res-row ${qualifyingIds.has(c.id) ? 'advancing' : ''}">
-        <span class="res-rank serif">${i+1}</span>
-        <span class="res-name serif">${escapeHtml(c.name)}</span>
-        <span class="res-score serif">${fmtAvg(c.avg)} / 10
-          <span class="res-breakdown">Aud ${fmtAvg(c.audienceAvg) || '—'} · Judges ${fmtAvg(c.judgeAvg) || '—'}</span>
-        </span>
-        ${qualifyingIds.has(c.id) ? '<span class="res-tag">Advances</span>' : ''}
-      </div>
-    `).join('');
+  function breakdownLine(c){
+    return `<span class="res-breakdown">Aud ${fmtAvg(c.audienceAvg) || '—'} &middot; Judges ${fmtAvg(c.judgeAvg) || '—'}</span>`;
+  }
 
-    const unscoredRows = unscored.map(c => `
-      <div class="res-row muted-row">
-        <span class="res-rank serif">—</span>
-        <span class="res-name serif">${escapeHtml(c.name)}</span>
-        <span class="res-score serif">No score yet</span>
-      </div>
-    `).join('');
+  function renderLiveResults(state){
+    const roundNum = state.round || 1;
+    let rows, unscoredRows, actionsHtml;
 
-    const canAdvance = sorted.length > 0 && !state.votingActive;
-    const nextRound = (state.round || 1) + 1;
+    if(roundNum === 1){
+      const { sorted, unscored, qualifyingIds } = computeTalentQualifiers(state.contestants);
+      rows = sorted.map((c,i) => `
+        <div class="res-row ${qualifyingIds.has(c.id) ? 'advancing' : ''}">
+          <span class="res-rank serif">${i+1}</span>
+          <span class="res-name">${escapeHtml(c.name)}${breakdownLine(c)}</span>
+          <span class="res-score serif">${fmtAvg(c.avg)} / 10</span>
+          ${qualifyingIds.has(c.id) ? '<span class="res-tag">Advances</span>' : ''}
+        </div>
+      `).join('');
+      unscoredRows = unscored.map(c => `
+        <div class="res-row muted-row">
+          <span class="res-rank serif">—</span>
+          <span class="res-name">${escapeHtml(c.name)}</span>
+          <span class="res-score serif">No score yet</span>
+        </div>
+      `).join('');
+      const canAdvance = sorted.length > 0 && !state.votingActive;
+      actionsHtml = `<button class="action-primary" id="transfer-btn" ${canAdvance?'':'disabled'}>Transfer Top 50% → Catent</button>`;
+    } else {
+      const { sorted, unscored, winnerIds } = computeCatentWinners(state.contestants);
+      rows = sorted.map((c,i) => `
+        <div class="res-row ${winnerIds.has(c.id) ? 'winner' : ''}">
+          <span class="res-rank serif ${winnerIds.has(c.id)?'gold':''}">${i+1}</span>
+          <span class="res-name">${escapeHtml(c.name)}${breakdownLine(c)}</span>
+          <span class="res-score serif">${fmtAvg(c.avg)} / 10</span>
+          ${winnerIds.has(c.id) ? `<span class="res-tag winner-tag">🏆 Winner</span>` : ''}
+        </div>
+      `).join('');
+      unscoredRows = unscored.map(c => `
+        <div class="res-row muted-row">
+          <span class="res-rank serif">—</span>
+          <span class="res-name">${escapeHtml(c.name)}</span>
+          <span class="res-score serif">No score yet</span>
+        </div>
+      `).join('');
+      actionsHtml = '';
+    }
 
     app.innerHTML = `
-      <div class="brandbar">
-        <div class="wordmark">LIVE <span>VOTE</span></div>
-        <div class="lot-tag">ROUND ${state.round || 1} RESULTS</div>
-      </div>
+      ${renderTopChrome(state, adminTab)}
       <div class="admin-wrap">
         <div class="admin-intro">
-          <h1 class="admin-title serif">Results</h1>
-          <div class="admin-sub">Ranked by Final score (audience + judges, averaged), highest to lowest. Top 50% (ties included) advance to the next round.</div>
+          <h1 class="admin-title">${ROUND_NAME[roundNum]} Results</h1>
+          <div class="admin-sub">${roundNum===1 ? 'Ranked by Final score, highest to lowest. Top 50% (ties included) advance to Catent.' : 'Ranked by Final score. The top 3 are the winners.'}</div>
         </div>
         <div id="results-list">${rows}${unscoredRows}</div>
         <div class="results-actions">
-          <button class="cr-textbtn" id="back-to-lineup">&larr; Back to lineup</button>
-          <button class="start-btn" id="start-next-round-btn" ${canAdvance ? '' : 'disabled'}>Start Round ${nextRound}</button>
+          ${actionsHtml}
         </div>
-        ${state.votingActive ? '<div class="footer-note">Close the current vote before starting the next round.</div>' : ''}
-        ${sorted.length === 0 ? '<div class="footer-note">No scores yet — close at least one round of voting first.</div>' : ''}
+        ${state.votingActive ? '<div class="footer-note">Close the current vote before transferring to the next round.</div>' : ''}
+        ${(!rows) ? '<div class="footer-note">No scores yet — close at least one vote first.</div>' : ''}
       </div>
     `;
+    attachTopChromeEvents(state);
 
-    document.getElementById('back-to-lineup').onclick = () => {
-      adminView = 'lineup';
-      renderAdminShell();
-      attachShellEvents();
-      adminIdsSignature = '';
-      rebuildListIfNeeded(adminState);
-      updateDynamic(adminState);
-    };
-
-    const nextBtn = document.getElementById('start-next-round-btn');
-    if(nextBtn && canAdvance){
-      nextBtn.onclick = () => {
+    const transferBtn = document.getElementById('transfer-btn');
+    if(transferBtn){
+      transferBtn.onclick = () => {
+        const ok = confirm('Transfer the top 50% to Catent?\n\nEliminated contestants stay on record but leave the live lineup. This starts Catent with a fresh, shuffled order.');
+        if(!ok) return;
         socket.emit('admin:startNextRound');
-        adminView = 'lineup';
-        renderAdminShell();
-        attachShellEvents();
+        adminTab = null; // let it snap to whichever round is now live
+        adminSubview = 'lineup';
         adminIdsSignature = '';
-        // list will populate as soon as the server's updated state arrives
       };
     }
   }
 
-  function initAdmin(){
-    renderAdminShell();
-    attachShellEvents();
+  // ---------- archived Talent results (viewed while Catent is live) ----------
 
-    socket.on('state', (state) => {
-      adminState = state;
-      if(adminView === 'lineup'){
-        rebuildListIfNeeded(state);
-        updateDynamic(state);
-        updateRoundBadge(state);
-      } else {
-        renderResultsView(state);
-      }
-    });
-    socket.on('voteCount', ({sessionId, count}) => updateVoteCount(sessionId, count));
-  }
-
-  // ============================================================
-  // AUDIENCE VIEW
-  // ============================================================
-  let votedSessionId = null;
-  let selectedScore = null;
-  let lastRenderedKey = null;
-
-  function renderAudience(state){
-    const active = state.votingActive && state.currentId;
-    const contestant = active ? state.contestants.find(c=>c.id===state.currentId) : null;
-
-    if(active && contestant && votedSessionId !== state.sessionId){
-      const renderKey = 'voting_' + state.sessionId;
-      if(lastRenderedKey !== renderKey){
-        lastRenderedKey = renderKey;
-        selectedScore = null;
-        app.innerHTML = `
-          <div class="brandbar">
-            <div class="wordmark">LIVE <span>VOTE</span></div>
-            <div class="lot-tag">AUDIENCE BALLOT</div>
-          </div>
-          <div class="aud-wrap">
-            <div class="live-tag tracked"><span class="live-dot"></span>Now Scoring</div>
-            <div class="eyebrow tracked">Cast one mark</div>
-            <h1 class="contestant-name serif">${escapeHtml(contestant.name)}</h1>
-            <div class="num-grid" id="num-grid"></div>
-            <button class="submit-btn" id="submit-btn" disabled>Select a mark</button>
-          </div>
-        `;
-        const grid = document.getElementById('num-grid');
-        for(let i=1;i<=10;i++){
-          const b = document.createElement('button');
-          b.className = 'num-btn';
-          b.textContent = i;
-          b.dataset.val = i;
-          b.onclick = () => {
-            selectedScore = i;
-            document.querySelectorAll('.num-btn').forEach(el=>el.classList.remove('selected'));
-            b.classList.add('selected');
-            const sb = document.getElementById('submit-btn');
-            sb.disabled = false;
-            sb.classList.add('armed');
-            sb.textContent = 'Submit ' + i + ' of 10';
-          };
-          grid.appendChild(b);
-        }
-        document.getElementById('submit-btn').onclick = () => {
-          if(selectedScore === null) return;
-          const sb = document.getElementById('submit-btn');
-          sb.disabled = true;
-          sb.textContent = 'Submitting';
-          socket.emit('audience:submitVote', {
-            sessionId: state.sessionId,
-            deviceId,
-            score: selectedScore
-          });
-          votedSessionId = state.sessionId;
-          lastRenderedKey = null;
-          renderThanks(contestant, true);
-        };
-      }
-      return;
-    }
-
-    if(active && contestant && votedSessionId === state.sessionId){
-      renderThanks(contestant, true);
-      return;
-    }
-
-    renderThanks(null, false);
-  }
-
-  function renderThanks(contestant, justVoted){
-    const key = justVoted ? ('thanks_' + (contestant?contestant.id:'')) : 'idle';
-    if(lastRenderedKey === key) return;
-    lastRenderedKey = key;
-    app.innerHTML = `
-      <div class="brandbar">
-        <div class="wordmark">LIVE <span>VOTE</span></div>
-        <div class="lot-tag">AUDIENCE BALLOT</div>
+  function renderArchivedTalent(state){
+    const results = state.talentResults || [];
+    const rows = results.map((c,i) => `
+      <div class="res-row ${c.qualified ? 'advancing' : 'muted-row'}">
+        <span class="res-rank serif">${c.avg!==null && c.avg!==undefined ? (i+1) : '—'}</span>
+        <span class="res-name">${escapeHtml(c.name)}
+          <span class="res-breakdown">Aud ${fmtAvg(c.audienceAvg) || '—'} &middot; Judges ${fmtAvg(c.judgeAvg) || '—'}</span>
+        </span>
+        <span class="res-score serif">${c.avg!==null && c.avg!==undefined ? fmtAvg(c.avg)+' / 10' : 'No score'}</span>
+        ${c.qualified ? '<span class="res-tag">Advanced</span>' : ''}
       </div>
-      <div class="aud-wrap">
-        <div class="mark-glyph">${justVoted ? '✓' : '—'}</div>
-        <h1 class="thanks-title serif">${justVoted ? 'Thank You' : 'Welcome'}</h1>
-        <div class="rule-sm"></div>
-        <div class="thanks-sub">
-          ${justVoted
-            ? 'Your mark has been recorded. The floor reopens for the next entry'
-            : 'The ballot will open here the moment the next entry takes the floor'}
-          <span class="waiting-dots"><span>.</span><span>.</span><span>.</span></span>
+    `).join('');
+
+    app.innerHTML = `
+      ${renderTopChrome(state, 'talent')}
+      <div class="admin-wrap">
+        <span class="archived-tag">Archived</span>
+        <div class="admin-intro">
+          <h1 class="admin-title">Talent — Final Standings</h1>
+          <div class="admin-sub">Talent has finished. Catent is now live. This is a permanent record of who advanced.</div>
+        </div>
+        ${rows ? `<div id="results-list">${rows}</div>` : '<div class="archived-box">No Talent results recorded yet.</div>'}
+      </div>
+    `;
+    attachTopChromeEvents(state);
+  }
+
+  // ---------- locked Catent (viewed before Talent has transferred) ----------
+
+  function renderCatentLocked(state){
+    app.innerHTML = `
+      ${renderTopChrome(state, 'catent')}
+      <div class="admin-wrap">
+        <div class="admin-intro">
+          <h1 class="admin-title">Catent</h1>
+          <div class="admin-sub">Opens once you transfer the Top 50% from Talent.</div>
+        </div>
+        <div class="locked-box">
+          🔒 Catent hasn't started yet.<br>Finish scoring Talent, then use <strong>Transfer Top 50% → Catent</strong> from the Talent results screen.
         </div>
       </div>
     `;
+    attachTopChromeEvents(state);
   }
 
-  function initAudience(){
-    renderThanks(null, false);
-    socket.on('state', (state) => renderAudience(state));
+  // ---------- dispatcher ----------
+
+  function renderAdmin(state){
+    const live = liveTabKey(state);
+    if(adminTab === null) adminTab = live; // default to whichever round is currently live
+
+    if(adminTab === live){
+      if(adminSubview === 'results') renderLiveResults(state);
+      else renderLiveLineup(state);
+      return;
+    }
+    if(adminTab === 'talent' && live === 'catent'){
+      renderArchivedTalent(state);
+      return;
+    }
+    // adminTab === 'catent' && live === 'talent'
+    renderCatentLocked(state);
+  }
+
+  function initAdmin(){
+    socket.on('state', (state) => {
+      const prevWasLiveLineup = adminState && adminTab === liveTabKey(adminState) && adminSubview === 'lineup';
+      const idsChanged = !adminState || adminState.contestants.map(c=>c.id).join(',') !== state.contestants.map(c=>c.id).join(',');
+      adminState = state;
+
+      // Fast path: still viewing the live lineup and the roster hasn't
+      // changed shape — patch in place instead of a full re-render, so
+      // in-progress name edits / drag aren't disturbed by every vote.
+      if(prevWasLiveLineup && !idsChanged && document.getElementById('list')){
+        rebuildListIfNeeded(state);
+        updateDynamic(state);
+        return;
+      }
+      renderAdmin(state);
+    });
+    socket.on('voteCount', ({sessionId, audienceCount, judgeCount, judgeTotal}) => {
+      lastVoteCounts = {sessionId, audienceCount, judgeCount, judgeTotal};
+      updateVoteCount(sessionId, audienceCount, judgeCount, judgeTotal);
+    });
   }
 
   // ============================================================
   if(isAdmin){
     initAdmin();
+  } else if(isJudge){
+    initJudge(judgeNum);
   } else {
     initAudience();
   }

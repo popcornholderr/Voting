@@ -14,12 +14,16 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const CACHE_FILE = path.join(__dirname, 'local-cache.json');
 
+const JUDGE_COUNT = 4;
+const ROUND_NAMES = { 1: 'Talent', 2: 'Catent' };
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------------- in-memory state ----------------
-// `state` mirrors what's in Supabase. `votesBySession` mirrors the `votes` table
-// for whichever session is currently active. Both are kept in memory for speed,
-// and mirrored to disk (instant) + Supabase (best-effort, async) on every change.
+// `state` mirrors what's in Supabase. `votesBySession` / `judgeVotesBySession`
+// mirror the `votes` / `judge_votes` tables for whichever session is active.
+// Everything is kept in memory for speed, and mirrored to disk (instant) +
+// Supabase (best-effort, async) on every change.
 
 function defaultState() {
   return {
@@ -32,12 +36,14 @@ function defaultState() {
     currentId: null,
     sessionId: null,
     votingActive: false,
-    round: 1
+    round: 1, // 1 = Talent, 2 = Catent (final)
+    talentResults: null // frozen snapshot of Talent's final standings, set once Catent begins
   };
 }
 
 let state = defaultState();
-let votesBySession = {}; // sessionId -> { deviceId: score }
+let votesBySession = {};      // sessionId -> { deviceId: score }        (audience, 1-10)
+let judgeVotesBySession = {}; // sessionId -> { '1'|'2'|'3'|'4': score } (judges, 1-10)
 
 function newId() {
   return 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -52,17 +58,16 @@ function roundToHalf(avg) {
   return rounded / 2;
 }
 
-// Final score = average of the audience average and the judges' average,
-// rounded to the nearest 0.5 (ties round down) — same rule as everywhere
-// else, but applied ONCE, at the end. audienceAvg itself is stored as the
-// exact raw average (not pre-rounded), so nothing gets rounded twice before
-// landing on the Final number.
+// Final score = average of the audience average and the judges' average, same
+// rounding rule as everything else. If only one of the two exists yet, that
+// one stands in as the final score on its own so ranking still works with
+// partial data (e.g. judges haven't voted yet).
 function combineScores(c) {
   const hasAud = c.audienceAvg !== null && c.audienceAvg !== undefined;
   const hasJudge = c.judgeAvg !== null && c.judgeAvg !== undefined;
   if (hasAud && hasJudge) return roundToHalf((c.audienceAvg + c.judgeAvg) / 2);
-  if (hasAud) return roundToHalf(c.audienceAvg);
-  if (hasJudge) return roundToHalf(c.judgeAvg);
+  if (hasAud) return c.audienceAvg;
+  if (hasJudge) return c.judgeAvg;
   return null;
 }
 
@@ -72,7 +77,7 @@ function saveLocalCache() {
   try {
     fs.writeFileSync(
       CACHE_FILE,
-      JSON.stringify({ ...state, votesBySession }, null, 2)
+      JSON.stringify({ ...state, votesBySession, judgeVotesBySession }, null, 2)
     );
   } catch (e) {
     console.error('[local-cache] failed to write:', e.message);
@@ -82,8 +87,8 @@ function saveLocalCache() {
 function loadLocalCache() {
   try {
     const raw = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-    const { votesBySession: v, ...rest } = raw;
-    return { state: rest, votesBySession: v || {} };
+    const { votesBySession: v, judgeVotesBySession: j, ...rest } = raw;
+    return { state: rest, votesBySession: v || {}, judgeVotesBySession: j || {} };
   } catch (e) {
     return null;
   }
@@ -93,8 +98,6 @@ function loadLocalCache() {
 
 async function initState() {
   let loadedFromSupabase = false;
-
-  await db.checkSchema();
 
   if (db.isUp()) {
     const [contestants, appState] = await Promise.all([
@@ -108,12 +111,17 @@ async function initState() {
         currentId: appState.currentId,
         sessionId: appState.sessionId,
         votingActive: appState.votingActive,
-        round: appState.round || 1
+        round: appState.round || 1,
+        talentResults: appState.talentResults || null
       };
 
       if (state.votingActive && state.sessionId) {
-        const votes = await db.fetchVotesForSession(state.sessionId);
+        const [votes, judgeVotes] = await Promise.all([
+          db.fetchVotesForSession(state.sessionId),
+          db.fetchJudgeVotesForSession(state.sessionId)
+        ]);
         votesBySession[state.sessionId] = votes || {};
+        judgeVotesBySession[state.sessionId] = judgeVotes || {};
       }
 
       loadedFromSupabase = true;
@@ -126,6 +134,7 @@ async function initState() {
     if (cached) {
       state = cached.state;
       votesBySession = cached.votesBySession;
+      judgeVotesBySession = cached.judgeVotesBySession;
       console.log('[boot] Supabase unreachable — state restored from local cache');
     } else {
       state = defaultState();
@@ -140,11 +149,10 @@ async function initState() {
 // ---------------- persistence on every change ----------------
 // Always write the local cache synchronously first (this can never fail due to
 // the network being down). Then push to Supabase in the background — if that
-// fails (server's internet is down, Supabase is briefly unreachable, etc.) we
-// log it and move on; nothing already accepted from the audience/admin is lost,
-// because it's sitting in the local cache and in memory, and will be pushed to
-// Supabase the next time a write succeeds or the server is restarted with a
-// working connection.
+// fails we log it and move on; nothing already accepted is lost, because it's
+// sitting in the local cache and in memory, and will be pushed to Supabase the
+// next time a write succeeds or the server is restarted with a working
+// connection.
 
 function persistContestant(c) {
   saveLocalCache();
@@ -168,14 +176,25 @@ function persistVote(sessionId, deviceId, score) {
   db.upsertVote(sessionId, deviceId, score);
 }
 
+function persistJudgeVote(sessionId, judgeNum, score) {
+  saveLocalCache();
+  db.upsertJudgeVote(sessionId, judgeNum, score);
+}
+
 function persistReorder(ids) {
   saveLocalCache();
   db.setSortOrders(ids);
 }
 
-function currentVoteCount() {
+function currentAudienceVoteCount() {
   if (!state.sessionId) return 0;
   const votes = votesBySession[state.sessionId];
+  return votes ? Object.keys(votes).length : 0;
+}
+
+function currentJudgeVoteCount() {
+  if (!state.sessionId) return 0;
+  const votes = judgeVotesBySession[state.sessionId];
   return votes ? Object.keys(votes).length : 0;
 }
 
@@ -184,14 +203,33 @@ function broadcastState() {
 }
 
 function broadcastVoteCount() {
-  io.emit('voteCount', { sessionId: state.sessionId, count: currentVoteCount() });
+  io.emit('voteCount', {
+    sessionId: state.sessionId,
+    audienceCount: currentAudienceVoteCount(),
+    judgeCount: currentJudgeVoteCount(),
+    judgeTotal: JUDGE_COUNT
+  });
+}
+
+// Ranked standings for the CURRENT round's contestants, highest final score
+// first. Contestants with no final score yet are listed separately.
+function rankContestants(contestants) {
+  const scored = contestants.filter((c) => c.avg !== null && c.avg !== undefined);
+  const unscored = contestants.filter((c) => c.avg === null || c.avg === undefined);
+  const sorted = [...scored].sort((a, b) => b.avg - a.avg);
+  return { sorted, unscored };
 }
 
 // ---------------- sockets ----------------
 io.on('connection', (socket) => {
   socket.emit('state', state);
   if (state.votingActive) {
-    socket.emit('voteCount', { sessionId: state.sessionId, count: currentVoteCount() });
+    socket.emit('voteCount', {
+      sessionId: state.sessionId,
+      audienceCount: currentAudienceVoteCount(),
+      judgeCount: currentJudgeVoteCount(),
+      judgeTotal: JUDGE_COUNT
+    });
   }
 
   socket.on('admin:addContestant', ({ name }) => {
@@ -231,50 +269,74 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  // Takes the top 50% by score (ties included, so a tie at the cutoff advances
-  // everyone tied with it) into a fresh, randomly-shuffled lineup for the next
-  // round — no need to type the list in again. Eliminated contestants are kept
-  // in Supabase (soft-deleted) rather than destroyed.
+  // TALENT -> CATENT: takes the top 50% by final score (ties included, so a
+  // tie at the cutoff advances everyone tied with it), freezes Talent's
+  // standings into state.talentResults so they stay visible, and starts
+  // Catent with a fresh, randomly-shuffled lineup of just the qualifiers.
+  // Eliminated contestants are kept in Supabase (soft-deleted) rather than
+  // destroyed, so a full reset can always bring everyone back.
   socket.on('admin:startNextRound', () => {
     if (state.votingActive) return;
-    const scored = state.contestants.filter((c) => c.avg !== null && c.avg !== undefined);
-    if (scored.length === 0) return;
+    if (state.round !== 1) return; // only Talent -> Catent is a transfer; Catent is final
+    const { sorted, unscored } = rankContestants(state.contestants);
+    if (sorted.length === 0) return;
 
-    const sorted = [...scored].sort((a, b) => b.avg - a.avg);
     const cutoffCount = Math.max(1, Math.ceil(sorted.length / 2));
     const cutoffScore = sorted[cutoffCount - 1].avg;
     const qualifiers = sorted.filter((c) => c.avg >= cutoffScore);
     const eliminated = state.contestants.filter((c) => !qualifiers.some((q) => q.id === c.id));
 
+    // Freeze Talent's full standings (qualifiers + everyone else) for the record.
+    const qualifyingIds = new Set(qualifiers.map((c) => c.id));
+    state.talentResults = [
+      ...sorted.map((c) => ({
+        id: c.id,
+        name: c.name,
+        audienceAvg: c.audienceAvg,
+        judgeAvg: c.judgeAvg,
+        avg: c.avg,
+        qualified: qualifyingIds.has(c.id)
+      })),
+      ...unscored.map((c) => ({
+        id: c.id,
+        name: c.name,
+        audienceAvg: c.audienceAvg,
+        judgeAvg: c.judgeAvg,
+        avg: c.avg,
+        qualified: false
+      }))
+    ];
+
     // Fisher-Yates shuffle
-    for (let i = qualifiers.length - 1; i > 0; i--) {
+    const shuffled = [...qualifiers];
+    for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [qualifiers[i], qualifiers[j]] = [qualifiers[j], qualifiers[i]];
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    qualifiers.forEach((c) => {
-      c.avg = null; // fresh scoring for the new round
+    shuffled.forEach((c) => {
+      c.avg = null; // fresh scoring for Catent
       c.audienceAvg = null;
       c.judgeAvg = null;
     });
 
-    state.contestants = qualifiers;
+    state.contestants = shuffled;
     state.currentId = null;
     state.sessionId = null;
     state.votingActive = false;
-    state.round = (state.round || 1) + 1;
+    state.round = 2;
 
     saveLocalCache();
     db.saveAppState(state);
-    db.setSortOrders(qualifiers.map((c) => c.id));
-    qualifiers.forEach((c) => db.upsertContestant({ id: c.id, name: c.name, avg: null, audienceAvg: null, judgeAvg: null }));
+    db.setSortOrders(shuffled.map((c) => c.id));
+    shuffled.forEach((c) => db.upsertContestant({ id: c.id, name: c.name, avg: null, audienceAvg: null, judgeAvg: null }));
     eliminated.forEach((c) => db.setContestantActive(c.id, false));
 
     broadcastState();
   });
 
   // Full reset: brings back every contestant ever added (including ones
-  // eliminated in later rounds), clears every score, and drops the round
-  // counter back to 1. Only allowed between votes, same as starting a round.
+  // eliminated going into Catent), clears every score, drops back to Talent,
+  // and clears the frozen Talent results. Only allowed between votes.
   socket.on('admin:resetToRound1', async () => {
     if (state.votingActive) return;
 
@@ -297,9 +359,11 @@ io.on('connection', (socket) => {
       currentId: null,
       sessionId: null,
       votingActive: false,
-      round: 1
+      round: 1,
+      talentResults: null
     };
     votesBySession = {};
+    judgeVotesBySession = {};
 
     saveLocalCache();
     db.saveAppState(state);
@@ -313,6 +377,7 @@ io.on('connection', (socket) => {
     state.sessionId = id + '_' + Date.now();
     state.votingActive = true;
     votesBySession[state.sessionId] = {};
+    judgeVotesBySession[state.sessionId] = {};
     persistAppState();
     broadcastState();
     broadcastVoteCount();
@@ -321,40 +386,29 @@ io.on('connection', (socket) => {
   socket.on('admin:endVoting', () => {
     if (!state.votingActive || !state.sessionId) return;
     const endedSessionId = state.sessionId;
-    const votes = votesBySession[endedSessionId] || {};
-    const scores = Object.values(votes);
+    const audScores = Object.values(votesBySession[endedSessionId] || {});
+    const judgeScores = Object.values(judgeVotesBySession[endedSessionId] || {});
     const c = state.contestants.find((x) => x.id === state.currentId);
-    if (c && scores.length > 0) {
-      const raw = scores.reduce((a, b) => a + b, 0) / scores.length;
-      c.audienceAvg = raw; // exact, unrounded — rounding happens once, on the Final
+    if (c) {
+      if (audScores.length > 0) {
+        const raw = audScores.reduce((a, b) => a + b, 0) / audScores.length;
+        c.audienceAvg = roundToHalf(raw);
+      }
+      if (judgeScores.length > 0) {
+        const raw = judgeScores.reduce((a, b) => a + b, 0) / judgeScores.length;
+        c.judgeAvg = roundToHalf(raw);
+      }
       c.avg = combineScores(c);
       persistContestant(c);
     }
     delete votesBySession[endedSessionId];
+    delete judgeVotesBySession[endedSessionId];
     state.votingActive = false;
     state.currentId = null;
     state.sessionId = null;
     persistAppState();
     db.deleteVotesForSession(endedSessionId); // round is over, its raw votes aren't needed anymore
-    broadcastState();
-  });
-
-  // Admin enters (or clears) a judges' average for a contestant. Independent
-  // of the audience vote — can be set before, during, or after it. The final
-  // score is recomputed immediately so ranking always reflects both.
-  socket.on('admin:setJudgeAvg', ({ id, score }) => {
-    const c = state.contestants.find((x) => x.id === id);
-    if (!c) return;
-
-    if (score === null || score === undefined || score === '') {
-      c.judgeAvg = null;
-    } else {
-      const n = parseFloat(score);
-      if (isNaN(n) || n < 0 || n > 10) return;
-      c.judgeAvg = Math.round(n * 2) / 2; // snap to nearest 0.5, same granularity as everything else
-    }
-    c.avg = combineScores(c);
-    persistContestant(c);
+    db.deleteJudgeVotesForSession(endedSessionId);
     broadcastState();
   });
 
@@ -367,6 +421,21 @@ io.on('connection', (socket) => {
     persistVote(sessionId, deviceId, n); // written immediately, not just at round end
     broadcastVoteCount();
   });
+
+  // A judge's ballot is keyed by judge slot (1-4), not device — so if a judge
+  // reloads or switches devices mid-vote, they just overwrite their own slot
+  // instead of creating a duplicate voter.
+  socket.on('judge:submitVote', ({ sessionId, judgeNum, score }) => {
+    if (!state.votingActive || state.sessionId !== sessionId) return;
+    const jn = parseInt(judgeNum, 10);
+    if (isNaN(jn) || jn < 1 || jn > JUDGE_COUNT) return;
+    const n = parseInt(score, 10);
+    if (isNaN(n) || n < 1 || n > 10) return;
+    if (!judgeVotesBySession[sessionId]) judgeVotesBySession[sessionId] = {};
+    judgeVotesBySession[sessionId][jn] = n;
+    persistJudgeVote(sessionId, jn, n);
+    broadcastVoteCount();
+  });
 });
 
 initState().then(() => {
@@ -374,6 +443,7 @@ initState().then(() => {
     console.log('');
     console.log(`  Live Vote is running`);
     console.log(`  Audience:  http://localhost:${PORT}`);
+    console.log(`  Judges:    http://localhost:${PORT}/?judge=1  (…2, 3, 4)`);
     console.log(`  Admin:     http://localhost:${PORT}/?admin=1`);
     console.log(`  Storage:   ${db.isUp() ? 'Supabase (+ local cache backup)' : 'local cache only (Supabase not configured)'}`);
     console.log('');

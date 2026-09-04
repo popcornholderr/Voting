@@ -16,28 +16,6 @@ function mapRow(row) {
   };
 }
 
-// Quick boot-time probe: is the `contestants` table missing audience_avg /
-// judge_avg (i.e. the schema.sql migration for judges' marks hasn't been run
-// yet)? If so, every fetch/upsert touching those columns fails, and the app
-// silently falls back to whatever's in local-cache.json — which can look
-// like "the judges' marks feature just doesn't work" with no obvious cause.
-// This gives one loud, unmissable line in the server log instead.
-async function checkSchema() {
-  if (!isUp()) return;
-  try {
-    const { error } = await supabase.from('contestants').select('audience_avg, judge_avg').limit(1);
-    if (error) throw error;
-  } catch (e) {
-    console.error(
-      '\n' +
-      '⚠️  Supabase is missing the audience_avg / judge_avg columns on `contestants`.\n' +
-      '   Judges\' marks and the combined Final score will NOT persist correctly\n' +
-      '   until you run the migration: open Supabase → SQL Editor → New query,\n' +
-      '   paste the contents of supabase/schema.sql, and run it.\n'
-    );
-  }
-}
-
 async function fetchContestants() {
   if (!isUp()) return null; // null = "couldn't reach Supabase", caller should fall back
   try {
@@ -49,24 +27,6 @@ async function fetchContestants() {
     if (error) throw error;
     return data.map(mapRow);
   } catch (e) {
-    // audience_avg/judge_avg missing (migration not run)? Still read what we
-    // can (id, name, avg) rather than failing the whole boot and silently
-    // reverting to a possibly stale local-cache.json. checkSchema() already
-    // logged the loud warning about this at boot.
-    if (/audience_avg|judge_avg/i.test(e.message || '')) {
-      try {
-        const { data, error } = await supabase
-          .from('contestants')
-          .select('id, name, avg')
-          .eq('active', true)
-          .order('sort_order', { ascending: true });
-        if (error) throw error;
-        return data.map((row) => ({ id: row.id, name: row.name, avg: row.avg, audienceAvg: row.avg, judgeAvg: null }));
-      } catch (e2) {
-        console.error('[supabase] fetchContestants fallback also failed:', e2.message);
-        return null;
-      }
-    }
     console.error('[supabase] fetchContestants failed:', e.message);
     return null;
   }
@@ -74,8 +34,8 @@ async function fetchContestants() {
 
 // c: { id, name, avg, audienceAvg?, judgeAvg?, sortOrder?, active? }. Optional
 // fields are only written when explicitly provided (not undefined), so e.g. a
-// plain rename doesn't disturb sortOrder/active, and a judges-avg update alone
-// doesn't disturb audienceAvg.
+// plain rename doesn't disturb sortOrder/active, and a fresh-round score reset
+// doesn't disturb anything else.
 async function upsertContestant(c) {
   if (!isUp()) return false;
   try {
@@ -94,8 +54,8 @@ async function upsertContestant(c) {
 }
 
 // Soft-delete: used both for the admin's "Remove" button and for contestants
-// eliminated at the end of a round — kept in the table, just hidden from
-// the active lineup, so nothing is destructively lost.
+// eliminated going into Catent — kept in the table, just hidden from the
+// active lineup, so nothing is destructively lost.
 async function setContestantActive(id, active) {
   if (!isUp()) return false;
   try {
@@ -125,7 +85,8 @@ async function setSortOrders(idsInOrder) {
 }
 
 // Everyone who's ever been added, active or soft-deleted (eliminated),
-// ordered the way they'll come back into the lineup on a full reset.
+// ordered the way they'll come back into the lineup on a full reset. This is
+// the "very first list" the Start Over button rebuilds from.
 async function fetchAllContestants() {
   if (!isUp()) return null;
   try {
@@ -141,8 +102,8 @@ async function fetchAllContestants() {
   }
 }
 
-// Reactivates every contestant (including ones eliminated in a previous
-// round) and clears every score, for "back to Round 1".
+// Reactivates every contestant (including ones eliminated going into Catent)
+// and clears every score, for "Start Over".
 async function resetAllContestants() {
   if (!isUp()) return false;
   try {
@@ -179,7 +140,7 @@ async function fetchAppState() {
   try {
     const { data, error } = await supabase
       .from('app_state')
-      .select('current_id, session_id, voting_active, round')
+      .select('current_id, session_id, voting_active, round, talent_results')
       .eq('id', 1)
       .single();
     if (error) throw error;
@@ -187,7 +148,8 @@ async function fetchAppState() {
       currentId: data.current_id,
       sessionId: data.session_id,
       votingActive: data.voting_active,
-      round: data.round || 1
+      round: data.round || 1,
+      talentResults: data.talent_results || null
     };
   } catch (e) {
     console.error('[supabase] fetchAppState failed:', e.message);
@@ -195,7 +157,7 @@ async function fetchAppState() {
   }
 }
 
-async function saveAppState({ currentId, sessionId, votingActive, round }) {
+async function saveAppState({ currentId, sessionId, votingActive, round, talentResults }) {
   if (!isUp()) return false;
   try {
     const { error } = await supabase
@@ -207,6 +169,7 @@ async function saveAppState({ currentId, sessionId, votingActive, round }) {
           session_id: sessionId,
           voting_active: votingActive,
           round: round || 1,
+          talent_results: talentResults || null,
           updated_at: new Date().toISOString()
         },
         { onConflict: 'id' }
@@ -219,7 +182,7 @@ async function saveAppState({ currentId, sessionId, votingActive, round }) {
   }
 }
 
-// ---------------- votes ----------------
+// ---------------- audience votes ----------------
 
 // Written immediately as each vote comes in, so a crash/restart mid-round
 // loses zero already-cast votes.
@@ -269,12 +232,61 @@ async function deleteVotesForSession(sessionId) {
   }
 }
 
+// ---------------- judge votes ----------------
+// Same shape as audience votes, but keyed by judge slot (1-4) instead of a
+// device id, so a judge overwrites their own mark instead of stacking extras.
+
+async function upsertJudgeVote(sessionId, judgeNum, score) {
+  if (!isUp()) return false;
+  try {
+    const { error } = await supabase
+      .from('judge_votes')
+      .upsert(
+        { session_id: sessionId, judge_num: judgeNum, score, updated_at: new Date().toISOString() },
+        { onConflict: 'session_id,judge_num' }
+      );
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('[supabase] upsertJudgeVote failed:', e.message);
+    return false;
+  }
+}
+
+async function fetchJudgeVotesForSession(sessionId) {
+  if (!isUp() || !sessionId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('judge_votes')
+      .select('judge_num, score')
+      .eq('session_id', sessionId);
+    if (error) throw error;
+    const votes = {};
+    for (const row of data) votes[row.judge_num] = row.score;
+    return votes;
+  } catch (e) {
+    console.error('[supabase] fetchJudgeVotesForSession failed:', e.message);
+    return null;
+  }
+}
+
+async function deleteJudgeVotesForSession(sessionId) {
+  if (!isUp() || !sessionId) return false;
+  try {
+    const { error } = await supabase.from('judge_votes').delete().eq('session_id', sessionId);
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.error('[supabase] deleteJudgeVotesForSession failed:', e.message);
+    return false;
+  }
+}
+
 module.exports = {
   isUp,
   fetchContestants,
   fetchAllContestants,
   resetAllContestants,
-  checkSchema,
   upsertContestant,
   setContestantActive,
   setSortOrders,
@@ -283,5 +295,8 @@ module.exports = {
   saveAppState,
   upsertVote,
   fetchVotesForSession,
-  deleteVotesForSession
+  deleteVotesForSession,
+  upsertJudgeVote,
+  fetchJudgeVotesForSession,
+  deleteJudgeVotesForSession
 };
