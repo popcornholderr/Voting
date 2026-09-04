@@ -256,6 +256,7 @@
     border:1px solid var(--crimson); color:var(--crimson); padding:4px 8px;
   }
   .res-tag.winner-tag{border-color:var(--gold); color:var(--gold);}
+  .res-tag.mismatch-tag{border-color:rgba(255,255,255,0.25); color:rgba(255,255,255,0.5); font-style:italic;}
   .results-actions{
     display:flex; flex-direction:column; gap:10px;
     padding:22px;
@@ -510,13 +511,21 @@
     `;
   }
 
+  // NOTE: these handlers deliberately read `adminState` (the always-current
+  // module-level state) rather than the `state` argument this function was
+  // called with. `state` can go stale: the fast-update path in the socket
+  // 'state' handler patches score chips in place without calling this
+  // function again, so a closure over the original `state` would keep
+  // pointing at pre-vote-close data until a full re-render happened for some
+  // other reason (e.g. a page reload). Using `adminState` means these
+  // buttons always act on the latest data, even mid-fast-path.
   function attachTopChromeEvents(state){
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.onclick = () => {
         adminTab = btn.dataset.tab;
         adminSubview = 'lineup';
         adminIdsSignature = '';
-        renderAdmin(state);
+        renderAdmin(adminState || state);
       };
     });
     const resultsBtn = document.getElementById('results-toggle-btn');
@@ -524,7 +533,7 @@
       resultsBtn.onclick = () => {
         adminSubview = adminSubview === 'results' ? 'lineup' : 'results';
         adminIdsSignature = '';
-        renderAdmin(state);
+        renderAdmin(adminState || state);
       };
     }
     const resetBtn = document.getElementById('reset-all-btn');
@@ -812,11 +821,21 @@
     return { sorted, unscored, qualifyingIds };
   }
 
+  // A contestant is only winner-eligible if their audience average and judge
+  // average are exactly equal (both must exist). Everyone still gets ranked
+  // and shown by Final score, but the 🏆 Winner tag only goes to the top 3
+  // *eligible* contestants — an ineligible contestant is skipped over even if
+  // their Final score is higher.
   function computeCatentWinners(contestants){
     const scored = contestants.filter(c => c.avg !== null && c.avg !== undefined);
     const unscored = contestants.filter(c => c.avg === null || c.avg === undefined);
     const sorted = [...scored].sort((a,b) => b.avg - a.avg);
-    const winnerIds = new Set(sorted.slice(0,3).map(c => c.id));
+    const eligible = sorted.filter(c =>
+      c.audienceAvg !== null && c.audienceAvg !== undefined &&
+      c.judgeAvg !== null && c.judgeAvg !== undefined &&
+      c.audienceAvg === c.judgeAvg
+    );
+    const winnerIds = new Set(eligible.slice(0,3).map(c => c.id));
     return { sorted, unscored, winnerIds };
   }
 
@@ -854,7 +873,9 @@
           <span class="res-rank serif ${winnerIds.has(c.id)?'gold':''}">${i+1}</span>
           <span class="res-name">${escapeHtml(c.name)}${breakdownLine(c)}</span>
           <span class="res-score serif">${fmtAvg(c.avg)} / 10</span>
-          ${winnerIds.has(c.id) ? `<span class="res-tag winner-tag">🏆 Winner</span>` : ''}
+          ${winnerIds.has(c.id)
+            ? `<span class="res-tag winner-tag">🏆 Winner</span>`
+            : (i < 3 ? `<span class="res-tag mismatch-tag">Aud/Judges don't match</span>` : '')}
         </div>
       `).join('');
       unscoredRows = unscored.map(c => `
