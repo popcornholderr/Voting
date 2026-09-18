@@ -215,7 +215,7 @@
   /* ---------- ADMIN: judge links panel ---------- */
   .judge-panel{padding:20px 22px; border-bottom:1px solid var(--line);}
   .judge-panel-title{font-size:11px; font-weight:700; letter-spacing:1.6px; color:var(--muted); text-transform:uppercase; margin-bottom:12px;}
-  .judge-links{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .judge-links{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;}
   .judge-link-btn{
     display:flex; align-items:center; justify-content:space-between; gap:8px;
     background:var(--ink-2); border:1px solid var(--line); padding:10px 12px;
@@ -291,8 +291,9 @@
   const params = new URLSearchParams(window.location.search);
   const isAdmin = params.get('admin') === '1' || params.get('admin') === 'true';
   const judgeParam = params.get('judge');
-  const isJudge = ['1','2','3','4'].includes(judgeParam);
+  const isJudge = ['1','2','3'].includes(judgeParam);
   const judgeNum = isJudge ? parseInt(judgeParam, 10) : null;
+  const JUDGE_NAMES = { 1: 'Utsav Malani', 2: 'Jayprakash Joshi', 3: 'Payal Siddhpura' };
   const deviceId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random());
 
   const socket = io();
@@ -466,15 +467,16 @@
   }
 
   function initJudge(n){
-    const tag = 'JUDGE ' + n + ' BALLOT';
+    const judgeName = JUDGE_NAMES[n] || ('Judge ' + n);
+    const tag = 'JUDGE BALLOT &middot; ' + escapeHtml(judgeName);
     app.innerHTML = `
-      <div class="brandbar"><div class="wordmark">LIVE <span>VOTE</span></div><div class="lot-tag">${tag}</div></div>
-      <div class="aud-wrap"><div class="judge-badge">⚖ Judge ${n}</div><div class="thanks-sub">Connecting…</div></div>
+      <div class="brandbar"><div class="wordmark">LIVE <span>VOTE</span></div><div class="lot-tag">JUDGE BALLOT</div></div>
+      <div class="aud-wrap"><div class="judge-badge">⚖ ${escapeHtml(judgeName)}</div><div class="thanks-sub">Connecting…</div></div>
     `;
     lastRenderedKey = null;
     socket.on('state', (state) => renderScoringPage(state, tag, (score, sessionId) => {
       socket.emit('judge:submitVote', { sessionId, judgeNum: n, score });
-    }, false));
+    }, true));
   }
 
   // ============================================================
@@ -750,12 +752,12 @@
         <div class="judge-panel">
           <div class="judge-panel-title">Judge links &middot; hand one to each judge</div>
           <div class="judge-links">
-            ${[1,2,3,4].map(n => `<button class="judge-link-btn" data-judge="${n}"><span>Judge ${n}</span><span class="copy-hint">Tap to copy</span></button>`).join('')}
+            ${[1,2,3].map(n => `<button class="judge-link-btn" data-judge="${n}"><span>${escapeHtml(JUDGE_NAMES[n])}</span><span class="copy-hint">Tap to copy</span></button>`).join('')}
           </div>
         </div>
 
         <div class="footer-note">
-          Audience marks 1&ndash;10 average into <strong>Audience</strong>. The four judges' marks average into <strong>Judges</strong>. <strong>Final</strong> is the average of the two &mdash; every average rounds to the closest 0.5. That's what contestants are ranked on.
+          Audience marks 1&ndash;10 average into <strong>Audience</strong>. The three judges' marks average into <strong>Judges</strong>. <strong>Final</strong> is the average of the two &mdash; every average rounds to the closest 0.5. That's what contestants are ranked on.
         </div>
 
         <div class="results-actions">

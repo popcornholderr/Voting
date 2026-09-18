@@ -53,12 +53,14 @@ You'll see:
 ```
 Live Vote is running
 Audience:  http://localhost:3000
-Judges:    http://localhost:3000/?judge=1  (…2, 3, 4)
+Judges:    http://localhost:3000/?judge=1  (…2, 3)
+           1=Utsav Malani  2=Jayprakash Joshi  3=Payal Siddhpura
 Admin:     http://localhost:3000/?admin=1
 ```
 
 Open the **Admin** link yourself. Share the **Audience** link with the
-crowd, and give each of the four **Judge** links to one judge each.
+crowd, and give each of the three **Judge** links to the matching judge
+(1 = Utsav Malani, 2 = Jayprakash Joshi, 3 = Payal Siddhpura).
 
 **Do not open the HTML file directly by double-clicking it, and don't use
 a separate static file server (like VS Code Live Server).** This app needs
@@ -77,7 +79,8 @@ computer running `npm start`.
    - Mac: System Settings → Wi-Fi → Details, or run `ipconfig getifaddr en0` in Terminal
 3. Make sure your laptop and every phone are on the **same Wi-Fi network**.
 4. Audience opens: `http://192.168.1.24:3000` (use your real IP)
-5. Judges open: `http://192.168.1.24:3000/?judge=1`, `...?judge=2`, `...?judge=3`, `...?judge=4`
+5. Judges open: `http://192.168.1.24:3000/?judge=1`, `...?judge=2`, `...?judge=3`
+   (1 = Utsav Malani, 2 = Jayprakash Joshi, 3 = Payal Siddhpura)
 6. You open: `http://192.168.1.24:3000/?admin=1`
 
 **If people are not on the same network** (e.g. a public link anyone can
@@ -99,10 +102,16 @@ that way.
   - **Audience** votes from the plain link (no query string), one mark
     (1–10) per device per contestant.
   - **Judges** vote from their own personal link (`?judge=1` through
-    `?judge=4`) — same ballot design as the audience, but each judge's
+    `?judge=3`) — same ballot design as the audience, but each judge's
     mark is tracked as its own slot, so reloading or switching devices
     just overwrites that judge's own mark instead of adding an extra
-    vote.
+    vote. The three judge slots are fixed: 1 = Utsav Malani,
+    2 = Jayprakash Joshi, 3 = Payal Siddhpura — each judge's screen shows
+    their own name, and (like the audience ballot) displays a 30-second
+    countdown after voting opens. The countdown is just a pacing cue —
+    it never disables the submit button and never closes the vote itself;
+    only the admin's "Close & Score" does that, whenever the admin
+    chooses.
 - **Averages, all automatic.** "Close & Score" averages every audience
   mark into **Audience**, every judge mark into **Judges**, and averages
   those two into **Final** — the number contestants are ranked on. Every

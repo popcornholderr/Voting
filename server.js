@@ -14,7 +14,8 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const CACHE_FILE = path.join(__dirname, 'local-cache.json');
 
-const JUDGE_COUNT = 4;
+const JUDGE_COUNT = 3;
+const JUDGE_NAMES = { 1: 'Utsav Malani', 2: 'Jayprakash Joshi', 3: 'Payal Siddhpura' };
 const ROUND_NAMES = { 1: 'Talent', 2: 'Catent' };
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -28,10 +29,41 @@ app.use(express.static(path.join(__dirname, 'public')));
 function defaultState() {
   return {
     contestants: [
-      { id: 'c1', name: 'Contestant 1', avg: null, audienceAvg: null, judgeAvg: null },
-      { id: 'c2', name: 'Contestant 2', avg: null, audienceAvg: null, judgeAvg: null },
-      { id: 'c3', name: 'Contestant 3', avg: null, audienceAvg: null, judgeAvg: null },
-      { id: 'c4', name: 'Contestant 4', avg: null, audienceAvg: null, judgeAvg: null }
+      { id: 'c1', name: 'Ananya Jesadiya - Singing', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c2', name: 'Aastha Mehta - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c3', name: 'Hirva Jobanputra - Stand-up Comedy (Clean)', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c4', name: 'Bhargi Kadiyar - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c5', name: 'Bhumi Chavda - Singing', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c6', name: 'Power of Mind by Gopi Kalavadiya - Magic', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c7', name: 'Jiya Pandhi - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c8', name: 'Isha Gandhi - Stand-up Comedy (Clean)', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c9', name: 'Gunjan Uneval - Singing', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c10', name: 'Hetanshi Tamna - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c11', name: 'Jeel Pandya - Stand-up Comedy (Clean)', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c12', name: 'Beat Baddies (Riya, Dhwani, Vanshika) - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c13', name: 'Nirali Dabhi - Singing', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c14', name: 'H Solo by Hetvi Vaghadiya - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c15', name: 'Musical Meet by Hitesh Ratnotar - Singing', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c16', name: 'Pooja Dafda - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c17', name: 'Unfiltered Mayur by Mayur Borda - Mimicry', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c18', name: 'Hiranshi Palan - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c19', name: 'Miral H. Joshi - Poetry', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c20', name: 'The Metal (Hiren, Krunal, Saumya) - Band Performance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c21', name: 'Mahek Bhatti - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c22', name: 'Eklavya by Shalini Jivani - Midbrain Blindfold Activity', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c23', name: 'Palak Singh - Singing', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c24', name: 'Swati Gamara - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c25', name: 'Solo Saddie by Kalindee Vyas - Stand-up Comedy (Clean)', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c26', name: 'Sheouli Das - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c27', name: 'Visioner by Yasvi Kalavadiya - Third Eye Activation', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c28', name: 'Vanshika - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c29', name: 'Ruchi Pandya - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c30', name: 'Vasu Hirani - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c31', name: 'Vanita Kanzariya (Vanisha Kanjariya, Yashvi Kaila) - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c32', name: 'YS Group (Saloni, Yashvi) - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c33', name: 'Dhwani - Dance', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c34', name: 'Western Dayro (Manas, Tanisha, Krishn) - Western Dayro', avg: null, audienceAvg: null, judgeAvg: null },
+      { id: 'c35', name: 'Dhairya Mehta - Shayri', avg: null, audienceAvg: null, judgeAvg: null }
     ],
     currentId: null,
     sessionId: null,
@@ -443,7 +475,8 @@ initState().then(() => {
     console.log('');
     console.log(`  Live Vote is running`);
     console.log(`  Audience:  http://localhost:${PORT}`);
-    console.log(`  Judges:    http://localhost:${PORT}/?judge=1  (…2, 3, 4)`);
+    console.log(`  Judges:    http://localhost:${PORT}/?judge=1  (…2, 3)`);
+    console.log(`             1=${JUDGE_NAMES[1]}  2=${JUDGE_NAMES[2]}  3=${JUDGE_NAMES[3]}`);
     console.log(`  Admin:     http://localhost:${PORT}/?admin=1`);
     console.log(`  Storage:   ${db.isUp() ? 'Supabase (+ local cache backup)' : 'local cache only (Supabase not configured)'}`);
     console.log('');
