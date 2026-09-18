@@ -303,7 +303,27 @@
   const isJudge = ['1','2','3'].includes(judgeParam);
   const judgeNum = isJudge ? parseInt(judgeParam, 10) : null;
   const JUDGE_NAMES = { 1: 'Utsav Malani', 2: 'Jayprakash Joshi', 3: 'Payal Siddhpura' };
-  const deviceId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random());
+  // Persisted in localStorage so a page refresh / reopened tab keeps voting
+  // as the SAME device instead of minting a new id (which used to let one
+  // person cast unlimited votes just by reloading the page). Falls back to a
+  // fresh in-memory id only if storage is unavailable (e.g. private/incognito
+  // mode blocking it) — in that one case the old reload-to-revote behavior
+  // still applies, but that's now the exception, not the default.
+  function getOrCreateDeviceId() {
+    const KEY = 'liveVoteDeviceId';
+    const makeId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+    try {
+      let id = localStorage.getItem(KEY);
+      if (!id) {
+        id = makeId();
+        localStorage.setItem(KEY, id);
+      }
+      return id;
+    } catch (e) {
+      return makeId();
+    }
+  }
+  const deviceId = getOrCreateDeviceId();
 
   const socket = io();
   socket.on('connect', () => connFlag.classList.remove('show'));

@@ -91,6 +91,27 @@ folder and run `npm start` automatically. That's beyond what I can set up
 for you here, but the app itself doesn't need any changes to be deployed
 that way.
 
+### Deploying for a real event with ~hundreds of voters
+
+This app keeps its live state (current contestant, votes-in-progress) in
+one Node process's memory, and Socket.IO isn't set up to share state
+across multiple processes. That means, on Render or any similar host:
+
+- **Deploy exactly one instance and turn autoscaling off.** If the host
+  ever runs two copies at once (e.g. "scale to 2 instances" or a
+  rolling-deploy overlap), voters get randomly split between them and
+  each copy tallies votes independently — you'd get inconsistent counts
+  and a "current contestant" that disagrees between instances.
+- **Use an always-on plan, not a free/sleeping tier.** A tier that sleeps
+  after inactivity will cold-start slowly on the first request — bad if
+  everyone opens the link at once right as voting starts.
+- **Set `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` in the host's
+  environment variables.** Supabase is the only storage that survives a
+  redeploy — the local `local-cache.json` file lives on the container's
+  disk, which most hosts (including Render) wipe on redeploy or when a
+  crashed process is rescheduled onto a fresh container. Treat Supabase
+  as required, not optional, for a real event.
+
 ## How it works
 
 - **Two rounds:** Round 1 is **Talent**, round 2 is **Catent**. The admin

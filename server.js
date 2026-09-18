@@ -104,15 +104,51 @@ function combineScores(c) {
 }
 
 // ---------------- local cache (instant, disk-only fallback) ----------------
+// IMPORTANT: this file was writing synchronously (fs.writeFileSync) on every
+// single vote. Node is single-threaded, so a burst of ~300 votes arriving in
+// a few seconds would serialize 300 blocking disk writes on the same event
+// loop that also has to handle every other socket message — the #1 cause of
+// lag/timeouts under load. Fixed by debouncing: writes are coalesced and
+// flushed asynchronously at most every CACHE_FLUSH_INTERVAL_MS, and forced to
+// flush synchronously on process shutdown so nothing is lost on redeploy.
 
+const CACHE_FLUSH_INTERVAL_MS = 500;
+let cacheDirty = false;
+let cacheFlushTimer = null;
+
+function snapshotState() {
+  return JSON.stringify({ ...state, votesBySession, judgeVotesBySession }, null, 2);
+}
+
+// Call this from every hot path (vote handlers, etc). Non-blocking.
 function saveLocalCache() {
+  cacheDirty = true;
+  if (cacheFlushTimer) return; // a flush is already scheduled
+  cacheFlushTimer = setTimeout(flushLocalCacheAsync, CACHE_FLUSH_INTERVAL_MS);
+}
+
+function flushLocalCacheAsync() {
+  cacheFlushTimer = null;
+  if (!cacheDirty) return;
+  cacheDirty = false;
+  const data = snapshotState();
+  fs.writeFile(CACHE_FILE, data, (e) => {
+    if (e) console.error('[local-cache] failed to write:', e.message);
+  });
+}
+
+// Synchronous flush — only used at boot and on graceful shutdown, where a
+// one-off blocking write is fine (it's not happening 300 times in a burst).
+function saveLocalCacheSync() {
   try {
-    fs.writeFileSync(
-      CACHE_FILE,
-      JSON.stringify({ ...state, votesBySession, judgeVotesBySession }, null, 2)
-    );
+    fs.writeFileSync(CACHE_FILE, snapshotState());
   } catch (e) {
     console.error('[local-cache] failed to write:', e.message);
+  }
+  cacheDirty = false;
+  if (cacheFlushTimer) {
+    clearTimeout(cacheFlushTimer);
+    cacheFlushTimer = null;
   }
 }
 
@@ -175,8 +211,19 @@ async function initState() {
   }
 
   // Whatever we ended up with, make sure the local cache reflects it.
-  saveLocalCache();
+  // (Synchronous is fine here — this runs once at boot, not per vote.)
+  saveLocalCacheSync();
 }
+
+// Flush any pending debounced write synchronously before the process exits,
+// so a redeploy/restart never drops the last <500ms of votes. Render (and
+// most hosts) send SIGTERM before killing the process on a deploy/restart.
+function gracefulShutdown() {
+  saveLocalCacheSync();
+  process.exit(0);
+}
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 // ---------------- persistence on every change ----------------
 // Always write the local cache synchronously first (this can never fail due to
@@ -185,6 +232,13 @@ async function initState() {
 // sitting in the local cache and in memory, and will be pushed to Supabase the
 // next time a write succeeds or the server is restarted with a working
 // connection.
+//
+// NOTE on hosting: on Render (and most PaaS), the local disk is ephemeral —
+// a redeploy or a crash that respawns a fresh container wipes local-cache.json.
+// It only protects against in-process hiccups where the same container comes
+// back (e.g. an uncaught exception that Render restarts without rebuilding).
+// Supabase is the only store that survives a redeploy, so treat it as required
+// for a real event, not optional.
 
 function persistContestant(c) {
   saveLocalCache();
