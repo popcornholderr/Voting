@@ -209,6 +209,15 @@
   .end-btn:hover{background:var(--crimson); color:var(--ivory);}
   .start-btn.hide{display:none;}
 
+  .admin-timer{
+    font-family:'Fraunces',serif; font-variant-numeric:tabular-nums;
+    font-size:13px; color:var(--ivory-dim); letter-spacing:0.5px;
+    padding:10px 14px; border:1px solid var(--line-strong);
+    display:none; align-items:center;
+  }
+  .admin-timer.show{display:inline-flex;}
+  .admin-timer.done{color:var(--muted); border-color:var(--line);}
+
   .contestant-row{touch-action:pan-y;}
   .contestant-row.dragging{opacity:0.4;}
 
@@ -367,6 +376,42 @@
     };
     tick();
     ballotTimerInterval = setInterval(tick, 250);
+  }
+
+  // Same 30s formality countdown, shown on the admin's own screen next to
+  // whichever contestant is currently open for voting. Purely visual — it
+  // never closes the vote or touches the Open/Close buttons; only the admin
+  // clicking "Close & Score" ends a vote.
+  let adminTimerInterval = null;
+  let adminTimerSessionId = null;
+
+  function stopAdminTimer(){
+    if(adminTimerInterval){
+      clearInterval(adminTimerInterval);
+      adminTimerInterval = null;
+    }
+    adminTimerSessionId = null;
+  }
+
+  function startAdminTimer(sessionId, contestantId){
+    if(adminTimerSessionId === sessionId) return; // already running for this vote
+    stopAdminTimer();
+    adminTimerSessionId = sessionId;
+    const startedAt = sessionStartedAt(sessionId);
+    const tick = () => {
+      const el = document.getElementById('timer-' + contestantId);
+      if(!el){ stopAdminTimer(); return; }
+      const remaining = BALLOT_SECONDS - Math.floor((Date.now() - startedAt) / 1000);
+      if(remaining > 0){
+        el.textContent = '0:' + String(remaining).padStart(2,'0');
+        el.classList.remove('done');
+      } else {
+        el.textContent = "Time's up";
+        el.classList.add('done');
+      }
+    };
+    tick();
+    adminTimerInterval = setInterval(tick, 250);
   }
 
   function renderScoringPage(state, ballotTag, submitFn, showTimer){
@@ -581,6 +626,7 @@
       </div>
       <div class="cc-actions">
         <button class="start-btn" id="start-${c.id}" data-id="${c.id}">Open Voting</button>
+        <span class="admin-timer" id="timer-${c.id}">0:30</span>
         <button class="end-btn" id="end-${c.id}" data-id="${c.id}">Close &amp; Score</button>
       </div>
     `;
@@ -707,22 +753,34 @@
       badgeEl.classList.toggle('live', isActive);
       rowEl.classList.toggle('active-row', isActive);
 
+      const timerEl = document.getElementById('timer-' + c.id);
+
       if(isActive){
         startBtn.classList.add('hide');
         endBtn.classList.add('show');
         endBtn.disabled = false;
         endBtn.textContent = 'Close & Score';
+        if(timerEl) timerEl.classList.add('show');
+        startAdminTimer(state.sessionId, c.id);
       } else {
         endBtn.classList.remove('show');
         const otherActive = state.votingActive && state.currentId !== c.id;
         startBtn.disabled = !!otherActive;
         startBtn.classList.remove('hide');
+        if(timerEl){
+          timerEl.classList.remove('show');
+          timerEl.textContent = '0:30';
+          timerEl.classList.remove('done');
+        }
       }
 
       if(!isActive){
         countEl.textContent = '';
       }
     });
+
+    // No contestant active anymore (voting just closed) — stop the ticking.
+    if(!(state.votingActive && state.currentId)) stopAdminTimer();
   }
 
   function updateVoteCount(sessionId, audienceCount, judgeCount, judgeTotal){
